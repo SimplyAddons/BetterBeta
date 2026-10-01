@@ -1,0 +1,1013 @@
+-- Better Beta: options panels.
+--
+-- Interface Options > AddOns > Better Beta is a page of on/off toggles, one
+-- per feature, with the settings of each on sub-pages: FPS Counter, Creature
+-- Types (tooltip box + nameplate icon, each section shown while that feature
+-- is on), Wand Indicator, Soul Shards and Cinematic Ultra. A sub-page with
+-- nothing on is hidden from the list. /bb opens the main page; "/bb reap" is
+-- the line the Soul Shard macro runs and opens nothing. Everything applies
+-- immediately and is saved in BetterBetaDB.
+--
+-- Widgets are hand-built from base frame types plus the templates every
+-- client has (UICheckButtonTemplate, UIPanelButtonTemplate, InputBoxTemplate,
+-- BackdropTemplate). No UIDropDownMenu: it writes into Blizzard's shared menu
+-- globals and is a classic taint source. Pages are built on first show.
+--
+-- Hiding a sub-page: the Settings category list (Blizzard_CategoryList.lua,
+-- CreateSection) skips any category with a `redirectCategory` field, and
+-- search results for it point at that category (Blizzard's keybindings page
+-- uses this). So a sub-page with nothing on gets redirectCategory = our main
+-- category and the list is rebuilt with
+-- SettingsPanel:GetCategoryList():CreateCategories(); clearing the field
+-- lists it again. That field is the only thing of Blizzard's we write to, and
+-- only on our own categories. The pre-10.0 options frame has no such switch,
+-- there every page is always listed.
+
+local _, addon = ...
+local Print = addon.Print or print
+local general = addon.general
+local tip = addon.tooltip
+local ci = addon.creatureIcon
+local wi = addon.wandIndicator
+local ss = addon.soulShards
+local cu = addon.cinematicUltra
+
+local MAIN_TITLE = "Better Beta"
+local CONTENT_WIDTH = 580
+local SLIDER_WIDTH = 160
+local X0 = 16
+
+local refreshing = false  -- true while a Refresh pushes values into widgets
+
+-- -----------------------------------------------------------------------------
+-- Widget helpers
+-- -----------------------------------------------------------------------------
+local function Label(parent, text, font)
+  local fs = parent:CreateFontString(nil, "ARTWORK", font or "GameFontNormal")
+  fs:SetText(text)
+  return fs
+end
+
+local function Paragraph(parent, text, width)
+  local fs = Label(parent, text, "GameFontHighlightSmall")
+  fs:SetWidth(width or CONTENT_WIDTH)
+  fs:SetJustifyH("LEFT")
+  fs:SetWordWrap(true)
+  return fs
+end
+
+local function CheckBox(parent, label, onChange, font)
+  local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+  cb:SetSize(26, 26)
+  local text = cb.Text or cb.text
+  if not text then
+    text = Label(cb, label, "GameFontHighlight")
+    text:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+  end
+  text:SetFontObject(font or "GameFontHighlight")
+  text:SetText(label)
+  cb:SetScript("OnClick", function(self)
+    if not refreshing then
+      onChange(self:GetChecked() and true or false)
+    end
+  end)
+  return cb
+end
+
+local function RoundTo(value, step)
+  return math.floor(value / step + 0.5) * step
+end
+
+local function Clamp(value, low, high)
+  if value < low then return low end
+  if value > high then return high end
+  return value
+end
+
+-- Horizontal slider with a caption, min/max labels and a box to type the
+-- value. Enter or leaving the box applies the typed value; Escape reverts.
+local function Slider(parent, label, minValue, maxValue, step, onChange)
+  local slider = CreateFrame("Slider", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  slider:SetOrientation("HORIZONTAL")
+  slider:SetSize(SLIDER_WIDTH, 16)
+  slider:SetMinMaxValues(minValue, maxValue)
+  slider:SetValueStep(step)
+  slider:SetObeyStepOnDrag(true)
+  slider.step = step
+  if slider.SetBackdrop then
+    slider:SetBackdrop({
+      bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
+      edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
+      tile = true, tileSize = 8, edgeSize = 8,
+      insets = { left = 3, right = 3, top = 6, bottom = 6 },
+    })
+  end
+  slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+
+  slider.label = Label(slider, label, "GameFontNormalSmall")
+  slider.label:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", 0, 5)
+  slider.low = Label(slider, tostring(minValue), "GameFontHighlightSmall")
+  slider.low:SetPoint("TOPLEFT", slider, "BOTTOMLEFT", 2, -1)
+  slider.high = Label(slider, tostring(maxValue), "GameFontHighlightSmall")
+  slider.high:SetPoint("TOPRIGHT", slider, "BOTTOMRIGHT", -2, -1)
+
+  local input = CreateFrame("EditBox", nil, slider, "InputBoxTemplate")
+  input:SetSize(46, 18)
+  input:SetPoint("BOTTOMRIGHT", slider, "TOPRIGHT", 0, 3)
+  input:SetAutoFocus(false)
+  input:SetMaxLetters(6)
+  input:SetJustifyH("CENTER")
+  input:SetFontObject("GameFontHighlightSmall")
+  slider.input = input
+
+  function slider:SetTo(value)
+    self.lastValue = value
+    self:SetValue(value)
+    input:SetText(tostring(value))
+  end
+
+  function slider:SetActive(active)
+    if active then self:Enable() input:Enable() else self:Disable() input:Disable() end
+    self:SetAlpha(active and 1 or 0.5)
+  end
+
+  local function Commit(box)
+    local value = tonumber(box:GetText())
+    if value then
+      value = Clamp(RoundTo(value, step), minValue, maxValue)
+      local changed = value ~= slider.lastValue
+      slider:SetTo(value)
+      if changed and not refreshing then
+        onChange(value)
+      end
+    else
+      input:SetText(tostring(slider.lastValue or minValue))
+    end
+  end
+  input:SetScript("OnEnterPressed", function(box) Commit(box) box:ClearFocus() end)
+  input:SetScript("OnEditFocusLost", Commit)
+  input:SetScript("OnEscapePressed", function(box)
+    box:SetText(tostring(slider.lastValue or minValue))
+    box:ClearFocus()
+  end)
+
+  slider:SetScript("OnValueChanged", function(self, value)
+    value = RoundTo(value, self.step)
+    if not input:HasFocus() then
+      input:SetText(tostring(value))
+    end
+    if not refreshing and value ~= self.lastValue then
+      self.lastValue = value
+      onChange(value)
+    end
+  end)
+  return slider
+end
+
+local function Button(parent, text, width, onClick)
+  local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+  button:SetSize(width, 22)
+  button:SetText(text)
+  button:SetScript("OnClick", onClick)
+  return button
+end
+
+-- Read-only text box to copy from: a multi-line edit box in a plain scroll
+-- frame with a tooltip-style border. Clicking in it selects everything (then
+-- CTRL+C); typing puts the text back. SetValues(text) replaces the text and
+-- scrolls to the top.
+local function CopyBox(parent, width, height)
+  local holder = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  holder:SetSize(width, height)
+  if holder.SetBackdrop then
+    holder:SetBackdrop({
+      bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 16,
+      insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    holder:SetBackdropColor(0, 0, 0, 0.6)
+    holder:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+  end
+  holder.text = ""
+
+  local scroll = CreateFrame("ScrollFrame", nil, holder)
+  scroll:SetPoint("TOPLEFT", 8, -8)
+  scroll:SetPoint("BOTTOMRIGHT", -8, 8)
+  scroll:EnableMouse(true)
+  scroll:EnableMouseWheel(true)
+
+  local edit = CreateFrame("EditBox", nil, scroll)
+  edit:SetMultiLine(true)
+  edit:SetAutoFocus(false)
+  edit:SetFontObject("GameFontHighlight")
+  edit:SetSize(width - 16, height - 16) -- the height grows with the text
+  edit:SetTextInsets(2, 2, 0, 0)
+  scroll:SetScrollChild(edit)
+  holder.edit = edit
+
+  local function ScrollTo(offset)
+    scroll:SetVerticalScroll(Clamp(offset, 0, scroll:GetVerticalScrollRange()))
+  end
+
+  edit:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+  edit:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+  edit:SetScript("OnTextChanged", function(self, userInput)
+    if userInput then -- read-only: put the text back
+      self:SetText(holder.text)
+      self:HighlightText()
+    end
+  end)
+  edit:SetScript("OnCursorChanged", function(_, _, y, _, h) -- keep the cursor in view
+    local top, bottom = -y, -y + h
+    local offset, visible = scroll:GetVerticalScroll(), scroll:GetHeight()
+    if top < offset then
+      ScrollTo(top)
+    elseif bottom > offset + visible then
+      ScrollTo(bottom - visible)
+    end
+  end)
+  scroll:SetScript("OnMouseDown", function() edit:SetFocus() end)
+  scroll:SetScript("OnMouseWheel", function(self, delta) ScrollTo(self:GetVerticalScroll() - delta * 30) end)
+
+  function holder:SetValues(text)
+    self.text = text or ""
+    edit:SetText(self.text)
+    edit:SetCursorPosition(0)
+    ScrollTo(0)
+  end
+
+  function holder:SelectAll()
+    edit:SetFocus()
+    edit:HighlightText()
+  end
+  return holder
+end
+
+-- Colour swatch button; clicking opens Blizzard's colour picker. opts: get()
+-- returns { r, g, b[, a] }, set(r, g, b, a) stores, hasOpacity adds the alpha
+-- slider, onChange() runs after every change, key names the setting.
+local ColorPickerOpen -- forward declaration
+
+local function Swatch(parent, label, opts)
+  local swatch = CreateFrame("Button", nil, parent)
+  swatch:SetSize(22, 22)
+  swatch.key = opts.key
+  swatch.get, swatch.set = opts.get, opts.set
+  swatch.hasOpacity = opts.hasOpacity and true or false
+  swatch.onChange = opts.onChange
+  swatch.rim = swatch:CreateTexture(nil, "BACKGROUND")
+  swatch.rim:SetAllPoints()
+  swatch.rim:SetColorTexture(0.7, 0.7, 0.7, 1)
+  swatch.dark = swatch:CreateTexture(nil, "BORDER")
+  swatch.dark:SetPoint("TOPLEFT", 2, -2)
+  swatch.dark:SetPoint("BOTTOMRIGHT", -2, 2)
+  swatch.dark:SetColorTexture(0.1, 0.1, 0.1, 1)
+  swatch.color = swatch:CreateTexture(nil, "ARTWORK")
+  swatch.color:SetPoint("TOPLEFT", 2, -2)
+  swatch.color:SetPoint("BOTTOMRIGHT", -2, 2)
+  swatch.text = Label(swatch, label, "GameFontHighlight")
+  swatch.text:SetPoint("LEFT", swatch, "RIGHT", 6, 0)
+  swatch:SetScript("OnClick", function(self)
+    ColorPickerOpen(self)
+  end)
+  function swatch:Refresh()
+    local c = self.get()
+    self.color:SetColorTexture(c[1], c[2], c[3], c[4] or 1)
+  end
+  return swatch
+end
+
+-- Colour picker. Modern clients: ColorPickerFrame:SetupColorPickerAndShow(info)
+-- with real alpha. Older ones: fields on the frame with an inverted opacity
+-- slider. Both call back into us; we write only to our own settings.
+ColorPickerOpen = function(swatch)
+  local c = swatch.get()
+  local r0, g0, b0, a0 = c[1], c[2], c[3], c[4] or 1
+  local hasOpacity = swatch.hasOpacity
+
+  local function Apply(r, g, b, a)
+    swatch.set(r, g, b, a)
+    swatch:Refresh()
+    if swatch.onChange then
+      swatch.onChange()
+    end
+  end
+
+  if not ColorPickerFrame then
+    Print("colour picker not available in this client")
+    return
+  end
+
+  if ColorPickerFrame.SetupColorPickerAndShow then
+    local function FromPicker()
+      local r, g, b = ColorPickerFrame:GetColorRGB()
+      local a = a0
+      if hasOpacity and ColorPickerFrame.GetColorAlpha then
+        a = ColorPickerFrame:GetColorAlpha()
+      end
+      Apply(r, g, b, a)
+    end
+    ColorPickerFrame:SetupColorPickerAndShow({
+      r = r0, g = g0, b = b0, opacity = a0, hasOpacity = hasOpacity,
+      swatchFunc = FromPicker,
+      opacityFunc = FromPicker,
+      cancelFunc = function(previous)
+        if type(previous) == "table" then
+          Apply(previous.r or r0, previous.g or g0, previous.b or b0, previous.a or a0)
+        else
+          Apply(r0, g0, b0, a0)
+        end
+      end,
+    })
+  else
+    local function FromPicker()
+      local r, g, b = ColorPickerFrame:GetColorRGB()
+      local a = a0
+      if hasOpacity and OpacitySliderFrame and OpacitySliderFrame.GetValue then
+        a = 1 - OpacitySliderFrame:GetValue()
+      end
+      Apply(r, g, b, a)
+    end
+    ColorPickerFrame.hasOpacity = hasOpacity
+    ColorPickerFrame.opacity = 1 - a0
+    ColorPickerFrame.previousValues = { r0, g0, b0, 1 - a0 }
+    ColorPickerFrame.func = FromPicker
+    ColorPickerFrame.opacityFunc = FromPicker
+    ColorPickerFrame.cancelFunc = function(previous)
+      Apply(previous[1], previous[2], previous[3], 1 - (previous[4] or 0))
+    end
+    ColorPickerFrame:SetColorRGB(r0, g0, b0)
+    ColorPickerFrame:Hide()
+    ColorPickerFrame:Show()
+  end
+end
+
+-- -----------------------------------------------------------------------------
+-- Pages. A page is a canvas frame plus the functions the Settings frame and
+-- our own code call on it: Build runs on first show, Refresh pushes settings
+-- into widgets, Default resets what the page owns; sub-pages also have Enabled
+-- (is any of their functions on, so should the page be listed).
+-- -----------------------------------------------------------------------------
+local function NewPage(frameName, title)
+  local frame = CreateFrame("Frame", frameName)
+  frame.name = title
+  frame:Hide()
+  local page = { frame = frame, title = title, built = false, W = {} }
+  frame:SetScript("OnShow", function()
+    if not page.built then
+      page.built = true
+      page.Build()
+    end
+    page.Refresh()
+  end)
+  function frame:OnRefresh()
+    if page.built then
+      page.Refresh()
+    end
+  end
+  function frame:OnDefault()
+    page.Default()
+    if page.built then
+      page.Refresh()
+    end
+  end
+  function frame:OnCommit() end
+  return page
+end
+
+local function Title(page, text, description)
+  local title = Label(page.frame, text, "GameFontNormalLarge")
+  title:SetPoint("TOPLEFT", X0, -16)
+  local desc = Paragraph(page.frame, description)
+  desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+  return desc
+end
+
+local main = NewPage("BetterBetaOptionsPanel", MAIN_TITLE)
+local pages = {}          -- sub-pages in list order, filled in below
+local RefreshVisibility   -- forward declaration; defined with the registration
+
+-- =============================================================================
+-- Main page: one toggle per function
+-- =============================================================================
+local function ChangeToggle(apply)
+  apply()
+  RefreshVisibility()
+  main.Refresh()
+end
+
+function main.Build()
+  local W, f = main.W, main.frame
+  local desc = Title(main, "Better Beta",
+    "Small fixes for the Forever beta client. Tick a function to turn it on; its settings are then on a page under "
+    .. "Better Beta in the list on the left (click the arrow next to Better Beta to expand it).")
+
+  local function Row(above, label, description, onChange)
+    local cb = CheckBox(f, label, onChange, "GameFontNormal")
+    if above.desc then
+      cb:SetPoint("TOPLEFT", above.desc, "BOTTOMLEFT", -30, -10)
+    else
+      cb:SetPoint("TOPLEFT", above, "BOTTOMLEFT", -4, -16)
+    end
+    cb.desc = Paragraph(f, description, CONTENT_WIDTH - 30)
+    cb.desc:SetPoint("TOPLEFT", cb, "BOTTOMLEFT", 30, 2)
+    return cb
+  end
+
+  W.fps = Row(desc, "FPS counter",
+    "Shows the framerate counter (the one CTRL+R toggles) after login and after every /reload, because a reload hides it again.",
+    function(v) ChangeToggle(function() general.Set("showFPS", v) end) end)
+  W.tip = Row(W.fps, "Creature type above NPC tooltips",
+    "Shows an NPC's creature type (Humanoid, Beast, Undead and so on) with its icon in a small box on top of its tooltip.",
+    function(v) ChangeToggle(function() tip.Set("enabled", v) end) end)
+  W.icon = Row(W.tip, "Creature type icon on nameplates",
+    "Shows an icon for the creature type (beast, humanoid, undead, ...) left of the health bar on nameplates.",
+    function(v) ChangeToggle(function() ci.Set("enabled", v) end) end)
+  W.wand = Row(W.icon, "Wand indicator",
+    "Shows your wand's icon on screen while Shoot is on, with a bar that fills up until the next shot.",
+    function(v) ChangeToggle(function() wi.Set("enabled", v) end) end)
+  W.shards = Row(W.wand, "Soul Shard reaper (warlocks)",
+    "Deletes the Soul Shards above a limit you set. The game lets an addon destroy an item only during your own keypress, one per press, so it happens inside the Drain Soul macro on its page, with a bound key or with a button there.",
+    function(v) ChangeToggle(function() ss.Set("enabled", v) end) end)
+
+  W.ultra = Row(W.shards, "Cinematic Ultra",
+    "Sets the " .. #cu.CVARS .. " graphics console variables of the Cinematic Ultra guide (the menu's Render Scale 133% and 2x MSAA included, then sharpening, 4K shadows, full reflections, far more clutter and draw distance, heavy weather, every spell particle) after saving your own values; switching it off puts them back. After each switch you must type /camp yourself: the game saves them only on a clean logout.",
+    function(v) ChangeToggle(function() cu.Set("enabled", v) end) end)
+
+  local note = Paragraph(f, "/bb opens this panel from the chat line.")
+  note:SetPoint("TOPLEFT", W.ultra.desc, "BOTTOMLEFT", -30, -24)
+end
+
+function main.Refresh()
+  if not main.built then
+    return
+  end
+  local W = main.W
+  refreshing = true
+  W.fps:SetChecked(general.GetSettings().showFPS)
+  W.tip:SetChecked(tip.GetSettings().enabled)
+  W.icon:SetChecked(ci.GetSettings().enabled)
+  W.wand:SetChecked(wi.GetSettings().enabled)
+  W.shards:SetChecked(ss.GetSettings().enabled)
+  W.ultra:SetChecked(cu.GetSettings().enabled)
+  refreshing = false
+end
+
+function main.Default()
+  general.Reset({ "showFPS" })
+  tip.Set("enabled", tip.DEFAULTS.enabled)
+  ci.Set("enabled", ci.DEFAULTS.enabled)
+  wi.Set("enabled", wi.DEFAULTS.enabled)
+  ss.Set("enabled", ss.DEFAULTS.enabled)
+  cu.Set("enabled", cu.DEFAULTS.enabled)
+  RefreshVisibility()
+end
+
+-- =============================================================================
+-- FPS counter page
+-- =============================================================================
+local fps = NewPage("BetterBetaFPSPanel", "FPS Counter")
+pages[#pages + 1] = fps
+
+function fps.Enabled()
+  return general.GetSettings().showFPS
+end
+
+function fps.Build()
+  local W, f = fps.W, fps.frame
+  local desc = Title(fps, "FPS counter",
+    "Shows the framerate counter Blizzard toggles with CTRL+R after login and after every /reload, because a reload "
+    .. "hides it again; it sits where Blizzard puts it, by the micro menu. Turning this function off on the Better Beta "
+    .. "page hides the counter, and with it off a login or reload leaves the counter alone. The buttons below act on "
+    .. "the counter right now without changing the setting.")
+
+  W.show = Button(f, "Show now", 110, function() general.SetFramerateShown(true) end)
+  W.show:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -18)
+  W.hide = Button(f, "Hide now", 110, function() general.SetFramerateShown(false) end)
+  W.hide:SetPoint("LEFT", W.show, "RIGHT", 10, 0)
+end
+
+function fps.Refresh() end
+
+function fps.Default()
+  general.Reset({ "showFPS" })
+end
+
+-- =============================================================================
+-- Creature Types page: the tooltip box and the nameplate icon. Listed while
+-- either is on; each has a section that is shown only while it is on.
+-- =============================================================================
+local typesPage = NewPage("BetterBetaCreatureTypesPanel", "Creature Types")
+pages[#pages + 1] = typesPage
+
+function typesPage.Enabled()
+  return tip.GetSettings().enabled or ci.GetSettings().enabled
+end
+
+local function RefreshIconPreview()
+  local W = typesPage.W
+  if W.preview then
+    ci.Layout(W.preview)
+    ci.SetIcon(W.preview, ci.SamplePath)
+  end
+end
+
+-- Show the section of each function that is on and stack them under the
+-- description, with the reset button below the last one shown.
+local function LayoutSections()
+  local W = typesPage.W
+  local tipOn, iconOn = tip.GetSettings().enabled, ci.GetSettings().enabled
+  for _, widget in ipairs(W.tipWidgets) do
+    widget:SetShown(tipOn)
+  end
+  for _, widget in ipairs(W.iconWidgets) do
+    widget:SetShown(iconOn)
+  end
+  W.iconHeader:ClearAllPoints()
+  if tipOn then
+    W.iconHeader:SetPoint("TOPLEFT", W.tipBottom, "BOTTOMLEFT", 0, -28)
+  else
+    W.iconHeader:SetPoint("TOPLEFT", W.desc, "BOTTOMLEFT", 0, -20)
+  end
+  W.reset:ClearAllPoints()
+  W.reset:SetPoint("TOPLEFT", iconOn and W.iconBottom or W.tipBottom, "BOTTOMLEFT", 0, -28)
+end
+
+function typesPage.Refresh()
+  if not typesPage.built then
+    return
+  end
+  local W = typesPage.W
+  local s = ci.GetSettings()
+  refreshing = true
+  W.allPlates:SetChecked(s.allPlates)
+  W.box:SetChecked(s.box)
+  W.size:SetTo(s.size)
+  W.gap:SetTo(s.gap)
+  W.offsetX:SetTo(s.offsetX)
+  W.offsetY:SetTo(s.offsetY)
+  refreshing = false
+  W.swatch:Refresh()
+  W.iconSwatch:Refresh()
+  RefreshIconPreview()
+  LayoutSections()
+end
+
+function typesPage.Default()
+  tip.Reset()
+  ci.Reset()
+end
+
+local function ChangeIcon(key, value)
+  ci.Set(key, value)
+  typesPage.Refresh()
+end
+
+function typesPage.Build()
+  local W, f = typesPage.W, typesPage.frame
+  W.desc = Title(typesPage, "Creature types",
+    "Shows an NPC's creature type (Humanoid, Beast, Undead, Demon, Elemental, ...) in a small box on top of its tooltip "
+    .. "and as an icon left of the health bar on nameplates, so you can see at a glance what Sap, Blind or a "
+    .. "tracking ability will work on. Players get neither. Each is turned on or off on the Better Beta page; the "
+    .. "settings of the ones that are on are below.")
+
+  -- tooltip box
+  W.tipHeader = Label(f, "Tooltip box", "GameFontHighlightLarge")
+  W.tipHeader:SetPoint("TOPLEFT", W.desc, "BOTTOMLEFT", 0, -20)
+  local colorLabel = Label(f, "Colour")
+  colorLabel:SetPoint("TOPLEFT", W.tipHeader, "BOTTOMLEFT", 0, -16)
+  W.swatch = Swatch(f, "Creature type text", {
+    key = "color",
+    get = function() return tip.GetSettings().color end,
+    set = function(r, g, b) tip.SetColor(r, g, b) end,
+    hasOpacity = false,
+  })
+  W.swatch:SetPoint("LEFT", colorLabel, "LEFT", 90, 0)
+  W.tipWidgets = { W.tipHeader, colorLabel, W.swatch }
+  W.tipBottom = colorLabel
+
+  -- nameplate icon (the header is anchored by LayoutSections)
+  W.iconHeader = Label(f, "Nameplate icon", "GameFontHighlightLarge")
+  W.allPlates = CheckBox(f, "Show on every nameplate (off: only your target's)",
+    function(v) ChangeIcon("allPlates", v) end)
+  W.allPlates:SetPoint("TOPLEFT", W.iconHeader, "BOTTOMLEFT", -4, -10)
+  W.box = CheckBox(f, "Show icon in a box", function(v) ChangeIcon("box", v) end)
+  W.box:SetPoint("TOPLEFT", W.allPlates, "BOTTOMLEFT", 0, 2)
+
+  local iconColorLabel = Label(f, "Colour")
+  iconColorLabel:SetPoint("TOPLEFT", W.box, "BOTTOMLEFT", 4, -12)
+  W.iconSwatch = Swatch(f, "Icon colour (white shows it as drawn)", {
+    key = "iconColor",
+    get = function() return ci.GetSettings().color end,
+    set = function(r, g, b) ci.SetColor(r, g, b) end,
+    hasOpacity = false,
+    onChange = RefreshIconPreview,
+  })
+  W.iconSwatch:SetPoint("LEFT", iconColorLabel, "LEFT", 90, 0)
+
+  -- sliders, two rows
+  W.size = Slider(f, "Size", 8, 48, 1, function(v) ChangeIcon("size", v) end)
+  W.size:SetPoint("TOPLEFT", iconColorLabel, "BOTTOMLEFT", 0, -38)
+  W.gap = Slider(f, "Gap", 0, 40, 1, function(v) ChangeIcon("gap", v) end)
+  W.gap:SetPoint("LEFT", W.size, "RIGHT", 36, 0)
+  W.offsetX = Slider(f, "Horizontal offset", -100, 100, 1, function(v) ChangeIcon("offsetX", v) end)
+  W.offsetX:SetPoint("TOPLEFT", W.size, "BOTTOMLEFT", 0, -58)
+  W.offsetY = Slider(f, "Vertical offset", -100, 100, 1, function(v) ChangeIcon("offsetY", v) end)
+  W.offsetY:SetPoint("LEFT", W.offsetX, "RIGHT", 36, 0)
+
+  -- preview
+  local previewLabel = Label(f, "Preview")
+  previewLabel:SetPoint("TOPLEFT", W.offsetX, "BOTTOMLEFT", 0, -44)
+  W.preview = ci.NewIcon(f)
+  W.preview:SetPoint("LEFT", previewLabel, "LEFT", 90, 0)
+  W.preview:SetFrameLevel(f:GetFrameLevel() + 2)
+
+  W.test = Button(f, "Show on target (8 s)", 170, function() ci.Test() end)
+  W.test:SetPoint("TOPLEFT", previewLabel, "BOTTOMLEFT", 0, -34)
+
+  W.iconWidgets = { W.iconHeader, W.allPlates, W.box, iconColorLabel, W.iconSwatch, W.size, W.gap, W.offsetX, W.offsetY,
+    previewLabel, W.preview, W.test }
+  W.iconBottom = W.test
+
+  W.reset = Button(f, "Reset to defaults", 140, function()
+    typesPage.Default()
+    typesPage.Refresh()
+    RefreshVisibility()
+  end)
+end
+
+-- =============================================================================
+-- Wand Indicator page
+-- =============================================================================
+local wandPage = NewPage("BetterBetaWandPanel", "Wand Indicator")
+pages[#pages + 1] = wandPage
+
+function wandPage.Enabled()
+  return wi.GetSettings().enabled
+end
+
+function wandPage.Refresh()
+  if not wandPage.built then
+    return
+  end
+  local W = wandPage.W
+  local s = wi.GetSettings()
+  refreshing = true
+  W.unlock:SetChecked(wi.IsUnlocked())
+  W.timer:SetChecked(s.timer)
+  W.text:SetChecked(s.text)
+  W.size:SetTo(s.size)
+  W.x:SetTo(s.x)
+  W.y:SetTo(s.y)
+  refreshing = false
+  W.swatch:Refresh()
+end
+
+function wandPage.Default()
+  wi.Reset()
+end
+
+local function ChangeWand(key, value)
+  wi.Set(key, value)
+  wandPage.Refresh()
+end
+
+wi.onMoved = wandPage.Refresh -- dragging the indicator moves the position sliders
+
+function wandPage.Build()
+  local W, f = wandPage.W, wandPage.frame
+  local desc = Title(wandPage, "Wand indicator",
+    "While Shoot is on, your wand's icon shows on screen with a pulsing rim, a bar that fills up until the next shot "
+    .. "and a comic-book sound under it (\"ZAP!\", \"POOF!\", \"SHAZAM!\", ...) that changes with every shot. If a "
+    .. "shot is overdue (out of range, not facing the target, ...) the rim stops pulsing, the icon turns grey and it "
+    .. "goes \"fizzle...\". It shows for a hunter's Auto Shot too. Turned on or off on the Better Beta page.")
+
+  W.unlock = CheckBox(f, "Unlock to move (shows it until you untick this; drag it where you want it)",
+    function(v) wi.SetUnlocked(v) wandPage.Refresh() end)
+  W.unlock:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", -4, -14)
+  W.timer = CheckBox(f, "Show the bar that fills up until the next shot", function(v) ChangeWand("timer", v) end)
+  W.timer:SetPoint("TOPLEFT", W.unlock, "BOTTOMLEFT", 0, 2)
+  W.text = CheckBox(f, "Show a comic-book sound on every shot (\"ZAP!\", \"POOF!\", ...)",
+    function(v) ChangeWand("text", v) end)
+  W.text:SetPoint("TOPLEFT", W.timer, "BOTTOMLEFT", 0, 2)
+
+  local colorLabel = Label(f, "Colour")
+  colorLabel:SetPoint("TOPLEFT", W.text, "BOTTOMLEFT", 4, -12)
+  W.swatch = Swatch(f, "Rim, bar and text", {
+    key = "color",
+    get = function() return wi.GetSettings().color end,
+    set = function(r, g, b) wi.SetColor(r, g, b) end,
+    hasOpacity = false,
+  })
+  W.swatch:SetPoint("LEFT", colorLabel, "LEFT", 90, 0)
+
+  W.size = Slider(f, "Size", 20, 96, 1, function(v) ChangeWand("size", v) end)
+  W.size:SetPoint("TOPLEFT", colorLabel, "BOTTOMLEFT", 0, -38)
+  W.x = Slider(f, "Horizontal position", -1000, 1000, 1, function(v) ChangeWand("x", v) end)
+  W.x:SetPoint("TOPLEFT", W.size, "BOTTOMLEFT", 0, -58)
+  W.y = Slider(f, "Vertical position", -600, 600, 1, function(v) ChangeWand("y", v) end)
+  W.y:SetPoint("LEFT", W.x, "RIGHT", 36, 0)
+
+  W.reset = Button(f, "Reset to defaults", 140, function()
+    wandPage.Default()
+    wandPage.Refresh()
+    RefreshVisibility()
+  end)
+  W.reset:SetPoint("TOPLEFT", W.x, "BOTTOMLEFT", 0, -40)
+end
+
+-- =============================================================================
+-- Soul Shards page: how many to keep, a button that deletes one now, and the
+-- Drain Soul macro to copy or create. The shard count on the status line is
+-- re-read whenever the bags change while the page is shown.
+-- =============================================================================
+local shardsPage = NewPage("BetterBetaSoulShardsPanel", "Soul Shards")
+pages[#pages + 1] = shardsPage
+
+function shardsPage.Enabled()
+  return ss.GetSettings().enabled
+end
+
+function shardsPage.Refresh()
+  if not shardsPage.built then
+    return
+  end
+  local W = shardsPage.W
+  local s = ss.GetSettings()
+  refreshing = true
+  W.max:SetTo(s.maxShards)
+  refreshing = false
+  local count = ss.Count()
+  local status
+  if not count then
+    status = "Keeping up to " .. s.maxShards .. " Soul Shards (the bags could not be read)."
+  elseif count > s.maxShards then
+    status = "You are carrying " .. count .. " Soul Shards and keeping up to " .. s.maxShards .. ": " .. (count - s.maxShards)
+      .. " will go, one per cast, keypress or click."
+  else
+    status = "You are carrying " .. count .. " Soul Shard" .. (count == 1 and "" or "s") .. " and keeping up to "
+      .. s.maxShards .. ": nothing to delete."
+  end
+  W.status:SetText(status)
+end
+
+function shardsPage.Default()
+  ss.Reset({ "maxShards" })
+end
+
+function shardsPage.Build()
+  local W, f = shardsPage.W, shardsPage.frame
+  local desc = Title(shardsPage, "Soul Shards",
+    "Keeps the Soul Shards in your bags at the limit below by deleting the ones above it. The game lets an addon "
+    .. "destroy an item only while it is handling your own keypress or click, never on its own when a shard arrives "
+    .. "(from there it could only pop up a \"destroy item?\" box), and only one item per keypress. So the deleting "
+    .. "happens inside the Drain Soul macro below, with a key bound under Options > Keybindings > AddOns > Better "
+    .. "Beta, or with the button here; each press removes one shard. Turned on or off on the Better Beta page.")
+
+  W.status = Paragraph(f, "", CONTENT_WIDTH)
+  W.status:SetFontObject("GameFontHighlight")
+  W.status:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -10)
+
+  W.max = Slider(f, "Maximum Soul Shards to keep", 0, 50, 1, function(v) ss.Set("maxShards", v) shardsPage.Refresh() end)
+  W.max:SetPoint("TOPLEFT", W.status, "BOTTOMLEFT", 0, -38)
+  W.delete = Button(f, "Delete one excess shard now", 200, function() ss.DeleteExcess() shardsPage.Refresh() end)
+  W.delete:SetPoint("LEFT", W.max, "RIGHT", 36, 0)
+
+  local zeroNote = Paragraph(f, "Because the macro deletes before it casts, you hold one shard above the limit after "
+    .. "each kill until the next cast. Set the limit to 0 to carry only the shard from your last kill: the cast "
+    .. "clears you out and the kill hands you a fresh one, so you may briefly have none.")
+  zeroNote:SetPoint("TOPLEFT", W.max, "BOTTOMLEFT", 0, -22)
+
+  W.macroHeader = Label(f, "Automatic deletion (macro)", "GameFontHighlightLarge")
+  W.macroHeader:SetPoint("TOPLEFT", zeroNote, "BOTTOMLEFT", 0, -20)
+  local macroText = Paragraph(f, "Cast Drain Soul through this macro and every shard above the limit is deleted "
+    .. "silently before the cast. The shard from the current kill arrives after the channel ends and goes on the "
+    .. "next cast. If your bags are full, one shard is deleted first so the new one has somewhere to go. Copy it "
+    .. "into /macro, or click the button, then drag the macro onto your action bar in place of Drain Soul.")
+  macroText:SetPoint("TOPLEFT", W.macroHeader, "BOTTOMLEFT", 0, -8)
+  W.macro = CopyBox(f, CONTENT_WIDTH, 72)
+  W.macro:SetPoint("TOPLEFT", macroText, "BOTTOMLEFT", 0, -10)
+  W.macro:SetValues(ss.MACRO_BODY)
+  local hint = Paragraph(f, "Click in the box and press CTRL+C to copy the macro.")
+  hint:SetPoint("TOPLEFT", W.macro, "BOTTOMLEFT", 0, -6)
+  W.create = Button(f, "Create the macro for me", 180, function() ss.CreateMacro() end)
+  W.create:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
+
+  local keyNote = Paragraph(f, "A key can do the same as the macro's reap line: Options > Keybindings > AddOns > "
+    .. "Better Beta > " .. ss.KEYBINDING .. ".")
+  keyNote:SetPoint("TOPLEFT", W.create, "BOTTOMLEFT", 0, -12)
+
+  W.reset = Button(f, "Reset to defaults", 140, function()
+    shardsPage.Default()
+    shardsPage.Refresh()
+  end)
+  W.reset:SetPoint("TOPLEFT", keyNote, "BOTTOMLEFT", 0, -20)
+
+  -- the count on the status line follows the bags while the page is shown
+  f:RegisterEvent("BAG_UPDATE_DELAYED")
+  f:SetScript("OnEvent", function(self)
+    if self:IsShown() then
+      shardsPage.Refresh()
+    end
+  end)
+end
+
+-- =============================================================================
+-- Cinematic Ultra page. Always listed, on or off: it shows the saved and the
+-- live values, which matter most while the feature is off. A status line, two
+-- copy boxes side by side, Apply/Restore again and Read again. The on/off
+-- switch itself is on the main page.
+-- =============================================================================
+local ultraPage = NewPage("BetterBetaCinematicUltraPanel", "Cinematic Ultra")
+pages[#pages + 1] = ultraPage
+
+local VALUES_BOX_HEIGHT = 210
+local VALUES_BOX_GAP = 12
+
+function ultraPage.Enabled()
+  return true
+end
+
+function ultraPage.Refresh()
+  if not ultraPage.built then
+    return
+  end
+  local W = ultraPage.W
+  local st = cu.Status()
+  local status
+  if st.enabled then
+    if st.differ == 0 then
+      status = "On: the Cinematic Ultra settings are in effect."
+    else
+      status = "On, but " .. st.differ .. " of the " .. st.total .. " values differ from the Cinematic Ultra settings "
+        .. "(compare the right box; Apply again sets them)."
+    end
+  elseif not st.haveOriginal then
+    status = "Off: nothing has been changed yet."
+  elseif st.differ == 0 then
+    status = "Off: your original settings are in effect."
+  else
+    status = "Off, but " .. st.differ .. " of the " .. st.total .. " values differ from your original settings "
+      .. "(Restore again sets them back)."
+  end
+  if st.unsaved then
+    status = status .. " " .. cu.CAMP_WARNING
+  end
+  W.status:SetText(status)
+  W.origHeader:SetText(st.haveOriginal and ("Original settings (saved " .. (st.takenAt or "earlier") .. ")")
+    or "Original settings")
+  W.original:SetValues(cu.OriginalText())
+  W.current:SetValues(cu.CurrentText())
+  W.again:SetShown(st.enabled or st.haveOriginal)
+  W.again:SetText(st.enabled and "Apply again" or "Restore again")
+end
+
+function ultraPage.Default()
+  cu.Reset()
+end
+
+function ultraPage.Build()
+  local W, f = ultraPage.W, ultraPage.frame
+  local desc = Title(ultraPage, "Cinematic Ultra",
+    "Sets the " .. #cu.CVARS .. " graphics console variables (CVars) of the \"Cinematic Ultra\" guide, its menu step "
+    .. "included: 133% render scale, 2x MSAA where the guide says None (cleaner edges), FidelityFX sharpening, "
+    .. "4096 shadow maps, full water "
+    .. "reflections and ripples, ground "
+    .. "clutter past the slider caps, far object, doodad and terrain detail, heavy weather, every spell particle. "
+    .. "Switching it on (on the Better Beta page) first saves your own values, shown on the left, then applies the "
+    .. "Cinematic Ultra ones; switching it off puts your own values back. The game writes console variables to "
+    .. "Config.wtf only on a clean logout, so after each switch you must type /camp yourself (an addon is not allowed to log you out).")
+
+  W.status = Paragraph(f, "", CONTENT_WIDTH)
+  W.status:SetFontObject("GameFontHighlight")
+  W.status:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -10)
+
+  W.menuNote = Paragraph(f, "Options > Graphics: the guide also says Render Scale 133% and Anti-Aliasing None there. The "
+    .. "switch sets the render scale and, instead of None, Multisample 2x (supersampling alone leaves edges more jagged); "
+    .. "RenderScale, MSAAQuality and ffxAntiAliasingMode are the variables behind those menu settings, so there is "
+    .. "nothing to change in the menu by hand unless the popup says one of them was refused. Moving those menu "
+    .. "settings later changes the same variables and undoes that part of the switch; the status line shows it.",
+    CONTENT_WIDTH)
+  W.menuNote:SetFontObject("GameFontNormalSmall")
+  W.menuNote:SetPoint("TOPLEFT", W.status, "BOTTOMLEFT", 0, -8)
+
+  local boxWidth = (CONTENT_WIDTH - VALUES_BOX_GAP) / 2
+  W.origHeader = Label(f, "Original settings")
+  W.origHeader:SetPoint("TOPLEFT", W.menuNote, "BOTTOMLEFT", 0, -14)
+  W.original = CopyBox(f, boxWidth, VALUES_BOX_HEIGHT)
+  W.original:SetPoint("TOPLEFT", W.origHeader, "BOTTOMLEFT", 0, -4)
+  local curHeader = Label(f, "Current settings (live)")
+  curHeader:SetPoint("TOPLEFT", W.origHeader, "TOPLEFT", boxWidth + VALUES_BOX_GAP, 0)
+  W.current = CopyBox(f, boxWidth, VALUES_BOX_HEIGHT)
+  W.current:SetPoint("TOPLEFT", curHeader, "BOTTOMLEFT", 0, -4)
+
+  W.again = Button(f, "Apply again", 120, function() cu.ApplyAgain() ultraPage.Refresh() end)
+  W.again:SetPoint("TOPLEFT", W.original, "BOTTOMLEFT", 0, -12)
+  W.read = Button(f, "Read again", 110, function() ultraPage.Refresh() end)
+  W.read:SetPoint("LEFT", W.again, "RIGHT", 10, 0)
+
+  local note = Paragraph(f, "Click in a box to select everything, then press CTRL+C to copy it; each line is a "
+    .. "/console command you can also type one at a time to put a value back by hand. Apply again sets the "
+    .. "Cinematic Ultra values once more (while off, Restore again sets your original ones); Read again re-reads "
+    .. "the right box.")
+  note:SetPoint("TOPLEFT", W.again, "BOTTOMLEFT", 0, -12)
+end
+
+-- =============================================================================
+-- Registration, sub-page visibility and /bb
+-- =============================================================================
+local category -- the main Better Beta category (modern Settings API only)
+
+if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
+  category = Settings.RegisterCanvasLayoutCategory(main.frame, MAIN_TITLE)
+  for _, page in ipairs(pages) do
+    if Settings.RegisterCanvasLayoutSubcategory then
+      page.category = Settings.RegisterCanvasLayoutSubcategory(category, page.frame, page.title)
+    else
+      page.category = Settings.RegisterCanvasLayoutCategory(page.frame, MAIN_TITLE .. ": " .. page.title)
+      Settings.RegisterAddOnCategory(page.category)
+    end
+  end
+  Settings.RegisterAddOnCategory(category)
+elseif InterfaceOptions_AddCategory then
+  InterfaceOptions_AddCategory(main.frame)
+  for _, page in ipairs(pages) do
+    page.frame.parent = MAIN_TITLE -- used by the pre-10.0 options frame
+    InterfaceOptions_AddCategory(page.frame)
+  end
+end
+
+-- See the header: a subcategory with `redirectCategory` set is left out of the
+-- Settings category list. Assigning nil to a field that is already absent is
+-- avoided so an all-on setup writes nothing into Blizzard's tables at all.
+local function SetPageListed(page, listed)
+  local sub = page.category
+  if not sub or not category or sub == category then
+    return
+  end
+  if listed then
+    if rawget(sub, "redirectCategory") ~= nil then
+      sub.redirectCategory = nil
+    end
+  else
+    sub.redirectCategory = category
+  end
+end
+
+RefreshVisibility = function()
+  local changed = false
+  for _, page in ipairs(pages) do
+    local listed = page.Enabled() and true or false
+    if page.listed ~= listed then
+      page.listed = listed
+      local ok, err = pcall(SetPageListed, page, listed)
+      if not ok then
+        Print("options: could not update the page list: " .. tostring(err))
+      end
+      changed = true
+    end
+  end
+  if changed and type(SettingsPanel) == "table" and type(SettingsPanel.GetCategoryList) == "function" then
+    pcall(function()
+      local list = SettingsPanel:GetCategoryList()
+      if list and list.CreateCategories then
+        list:CreateCategories()
+      end
+    end)
+  end
+end
+
+main.frame:HookScript("OnShow", function() RefreshVisibility() end)
+
+-- Settings are loaded on ADDON_LOADED; by PLAYER_LOGIN every module has its
+-- saved values, so that is when the initial page list is decided.
+local loader = CreateFrame("Frame")
+loader:RegisterEvent("PLAYER_LOGIN")
+loader:SetScript("OnEvent", function(self)
+  self:UnregisterEvent("PLAYER_LOGIN")
+  RefreshVisibility()
+end)
+if IsLoggedIn and IsLoggedIn() then
+  RefreshVisibility()
+end
+
+-- /bb, the addon's only slash command, opens the main page. Its one argument,
+-- "reap", is the line the Soul Shard macro runs: it deletes one excess shard
+-- inside the keypress and opens nothing (silent while that function is off).
+SLASH_BETTERBETA1 = "/bb"
+SlashCmdList.BETTERBETA = function(msg)
+  if type(msg) == "string" and msg:match("^%s*(%S*)"):lower() == "reap" then
+    ss.Reap()
+    return
+  end
+  RefreshVisibility()
+  if category and Settings and Settings.OpenToCategory then
+    Settings.OpenToCategory(category.GetID and category:GetID() or main.frame.name)
+  elseif InterfaceOptionsFrame_OpenToCategory then
+    InterfaceOptionsFrame_OpenToCategory(main.frame)
+    InterfaceOptionsFrame_OpenToCategory(main.frame) -- old clients need the second call
+  else
+    Print("options: no options frame available in this client")
+  end
+end

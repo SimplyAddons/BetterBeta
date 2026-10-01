@@ -1,0 +1,6 @@
+<Bindings>
+    <!-- picked up by the client automatically, not listed in the toc -->
+    <Binding name="BETTERBETA_REAP_SHARDS" header="BETTERBETA" category="ADDONS">
+        BetterBeta_ReapShards()
+    </Binding>
+</Bindings>

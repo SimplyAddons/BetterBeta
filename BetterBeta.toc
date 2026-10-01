@@ -1,0 +1,18 @@
+## Interface: 16001
+## Title: Better Beta
+## Notes: Small fixes for the beta client: FPS counter after login and reload, creature type in tooltips and as an icon on nameplates, an indicator while the wand is shooting, a Soul Shard reaper for warlocks, and a Cinematic Ultra switch (17 graphics console variables, your own values saved first). Options under AddOns > Better Beta, or /bb.
+## Author: SimplyAddons
+## Version: @project-version@
+## OptionalDeps: Blizzard_NamePlates
+## SavedVariables: BetterBetaDB
+## X-Category: Interface Enhancements
+## X-License: MIT
+## X-Curse-Project-ID: 1721552
+
+BetterBeta.lua
+Tooltip.lua
+CreatureIcon.lua
+WandIndicator.lua
+SoulShards.lua
+CinematicUltra.lua
+Options.lua
