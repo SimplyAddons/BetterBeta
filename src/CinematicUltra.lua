@@ -309,8 +309,30 @@ local function TakeSnapshot()
   end
   settings.original = current
   settings.originalTakenAt = date("%Y-%m-%d %H:%M")
+  if SameValues(current, UltraValues()) then
+    Print("Cinematic Ultra: heads up, the settings just saved as your original ones already match Cinematic Ultra. "
+      .. "If that is not what you had before, type your own values in chat and press Save current as original.")
+  end
   return true
 end
+
+-- True when the snapshot holds every value that can be read right now. The
+-- originals must be safe before anything is changed; without them a switch-on
+-- would leave nothing to put back.
+local function SnapshotCovers()
+  if type(settings.original) ~= "table" then
+    return false
+  end
+  for name in pairs(ReadAll()) do
+    if settings.original[name] == nil then
+      return false
+    end
+  end
+  return true
+end
+
+local NO_SNAPSHOT = "Cinematic Ultra was not applied: your current graphics settings could not be saved first, "
+  .. "and they must be so they can be put back."
 
 -- -----------------------------------------------------------------------------
 -- The popup after a switch: what happened, then the /camp warning in red and
@@ -412,6 +434,10 @@ local function SetEnabled(on)
   end
   if on then
     TakeSnapshot()
+    if not SnapshotCovers() then
+      Print(NO_SNAPSHOT)
+      return
+    end
     local set, failed, hint = ApplyValues(UltraValues())
     settings.applied = ReadAll()
     settings.enabled = true
@@ -472,6 +498,10 @@ end
 function cu.ApplyAgain()
   if settings.enabled then
     FillSnapshot(ReadAll())
+    if not SnapshotCovers() then
+      Print(NO_SNAPSHOT)
+      return
+    end
     local set, failed, hint = ApplyValues(UltraValues())
     settings.applied = ReadAll()
     Report(true, set, failed, hint)
