@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: Better Forever
-## Notes: Small fixes for the WoW Forever client: FPS counter after login and reload, creature type in tooltips and as an icon on nameplates, an indicator while the wand is shooting, a Soul Shard reaper for warlocks, and a Cinematic Ultra switch (17 graphics console variables, your own values saved first). Options under AddOns > Better Forever, or /bb.
+## Notes: Small fixes for the WoW Forever client: FPS counter after login and reload, creature type in tooltips and as an icon on nameplates, combo points on the target's nameplate, an indicator while the wand is shooting, a Soul Shard reaper for warlocks, and a Cinematic Ultra switch (17 graphics console variables, your own values saved first). Options under AddOns > Better Forever, or /bb.
 ## Author: SimplyAddons
 ## Version: @project-version@
 ## OptionalDeps: Blizzard_NamePlates
@@ -12,6 +12,7 @@
 src\BetterForever.lua
 src\Tooltip.lua
 src\CreatureIcon.lua
+src\ComboPoints.lua
 src\WandIndicator.lua
 src\SoulShards.lua
 src\CinematicUltra.lua

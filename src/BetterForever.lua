@@ -6,6 +6,7 @@
 --
 -- Tooltip.lua        creature type in a box above NPC tooltips
 -- CreatureIcon.lua   creature type icon on nameplates
+-- ComboPoints.lua    combo points on the target's nameplate
 -- WandIndicator.lua  on-screen indicator while Shoot is active
 -- SoulShards.lua     deletes excess Soul Shards (warlocks)
 -- CinematicUltra.lua the "Cinematic Ultra" graphics CVars, with a backup

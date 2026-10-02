@@ -3,14 +3,15 @@
 -- Interface Options > AddOns > Better Forever is a page of on/off toggles, one
 -- per feature, with the settings of each on sub-pages: FPS Counter, Creature
 -- Types (tooltip box + nameplate icon, each section shown while that feature
--- is on), Wand Indicator, Soul Shards and Cinematic Ultra. A sub-page with
--- nothing on is hidden from the list. /bb opens the main page; "/bb reap" is
--- the line the Soul Shard macro runs and opens nothing. Everything applies
--- immediately and is saved in BetterForeverDB.
+-- is on), Combo Points, Wand Indicator, Soul Shards and Cinematic Ultra. A
+-- sub-page with nothing on is hidden from the list. /bb opens the main page;
+-- "/bb reap" is the line the Soul Shard macro runs and opens nothing.
+-- Everything applies immediately and is saved in BetterForeverDB.
 --
 -- Widgets are hand-built from base frame types plus the templates every
 -- client has (UICheckButtonTemplate, UIPanelButtonTemplate, InputBoxTemplate,
--- BackdropTemplate). No UIDropDownMenu: it writes into Blizzard's shared menu
+-- BackdropTemplate); a choice between a few options is a row of radio dots
+-- drawn here. No UIDropDownMenu: it writes into Blizzard's shared menu
 -- globals and is a classic taint source. Pages are built on first show.
 --
 -- Hiding a sub-page: the Settings category list (Blizzard_CategoryList.lua,
@@ -28,6 +29,7 @@ local Print = addon.Print or print
 local general = addon.general
 local tip = addon.tooltip
 local ci = addon.creatureIcon
+local cp = addon.comboPoints
 local wi = addon.wandIndicator
 local ss = addon.soulShards
 local cu = addon.cinematicUltra
@@ -72,6 +74,56 @@ local function CheckBox(parent, label, onChange, font)
     end
   end)
   return cb
+end
+
+-- A row of radio dots, one of which is selected. options = { { value =,
+-- label = }, ... }. Drawn from the plain disc texture, not
+-- UIRadioButtonTemplate: its 16 px art blurs when enlarged.
+local RADIO_SIZE = 18
+local DISC = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+
+local function RadioGroup(parent, options, onSelect)
+  local group = { buttons = {} }
+  for i, option in ipairs(options) do
+    local rb = CreateFrame("CheckButton", nil, parent)
+    rb:SetSize(RADIO_SIZE, RADIO_SIZE)
+    rb.value = option.value
+    local rim = rb:CreateTexture(nil, "BACKGROUND")
+    rim:SetTexture(DISC)
+    rim:SetVertexColor(0.6, 0.6, 0.6, 1)
+    rim:SetAllPoints()
+    local inner = rb:CreateTexture(nil, "BORDER")
+    inner:SetTexture(DISC)
+    inner:SetVertexColor(0.1, 0.1, 0.1, 1)
+    inner:SetPoint("TOPLEFT", 2, -2)
+    inner:SetPoint("BOTTOMRIGHT", -2, 2)
+    local dot = rb:CreateTexture(nil, "ARTWORK")
+    dot:SetTexture(DISC)
+    dot:SetVertexColor(1, 0.82, 0, 1)
+    dot:SetPoint("TOPLEFT", 5, -5)
+    dot:SetPoint("BOTTOMRIGHT", -5, 5)
+    rb:SetCheckedTexture(dot)
+    local glow = rb:CreateTexture(nil, "HIGHLIGHT")
+    glow:SetTexture(DISC)
+    glow:SetVertexColor(1, 1, 1, 0.25)
+    glow:SetAllPoints()
+    rb:SetHighlightTexture(glow)
+    local text = Label(rb, option.label, "GameFontHighlight")
+    text:SetPoint("LEFT", rb, "RIGHT", 6, 0)
+    rb:SetScript("OnClick", function(self)
+      group:Select(self.value)
+      if not refreshing then
+        onSelect(self.value)
+      end
+    end)
+    group.buttons[i] = rb
+  end
+  function group:Select(value)
+    for _, button in ipairs(self.buttons) do
+      button:SetChecked(button.value == value)
+    end
+  end
+  return group
 end
 
 local function RoundTo(value, step)
@@ -424,7 +476,10 @@ function main.Build()
   W.icon = Row(W.tip, "Creature type icon on nameplates",
     "Shows an icon for the creature type (beast, humanoid, undead, ...) left of the health bar on nameplates.",
     function(v) ChangeToggle(function() ci.Set("enabled", v) end) end)
-  W.wand = Row(W.icon, "Wand indicator",
+  W.combo = Row(W.icon, "Combo points on the target's nameplate",
+    "Draws your combo points in a row on your target's nameplate, lit as they build and all in a second colour at full points (rogues, and druids in cat form).",
+    function(v) ChangeToggle(function() cp.Set("enabled", v) end) end)
+  W.wand = Row(W.combo, "Wand indicator",
     "Shows your wand's icon on screen while Shoot is on, with a bar that fills up until the next shot.",
     function(v) ChangeToggle(function() wi.Set("enabled", v) end) end)
   W.shards = Row(W.wand, "Soul Shard reaper (warlocks)",
@@ -448,6 +503,7 @@ function main.Refresh()
   W.fps:SetChecked(general.GetSettings().showFPS)
   W.tip:SetChecked(tip.GetSettings().enabled)
   W.icon:SetChecked(ci.GetSettings().enabled)
+  W.combo:SetChecked(cp.GetSettings().enabled)
   W.wand:SetChecked(wi.GetSettings().enabled)
   W.shards:SetChecked(ss.GetSettings().enabled)
   W.ultra:SetChecked(cu.GetSettings().enabled)
@@ -458,6 +514,7 @@ function main.Default()
   general.Reset({ "showFPS" })
   tip.Set("enabled", tip.DEFAULTS.enabled)
   ci.Set("enabled", ci.DEFAULTS.enabled)
+  cp.Set("enabled", cp.DEFAULTS.enabled)
   wi.Set("enabled", wi.DEFAULTS.enabled)
   ss.Set("enabled", ss.DEFAULTS.enabled)
   cu.Set("enabled", cu.DEFAULTS.enabled)
@@ -635,6 +692,160 @@ function typesPage.Build()
     typesPage.Refresh()
     RefreshVisibility()
   end)
+end
+
+-- =============================================================================
+-- Combo Points page: shape, position, sizes, colours, a live preview and the
+-- test button. The on/off switch is on the main page.
+-- =============================================================================
+local comboPage = NewPage("BetterForeverComboPointsPanel", "Combo Points")
+pages[#pages + 1] = comboPage
+
+function comboPage.Enabled()
+  return cp.GetSettings().enabled
+end
+
+local function RefreshComboPreview()
+  local W = comboPage.W
+  if W.previewSome then
+    W.previewSome:Layout(5)
+    W.previewSome:SetValue(3)
+    W.previewMax:Layout(5)
+    W.previewMax:SetValue(5)
+  end
+end
+
+function comboPage.Refresh()
+  if not comboPage.built then
+    return
+  end
+  local W = comboPage.W
+  local s = cp.GetSettings()
+  refreshing = true
+  W.showEmpty:SetChecked(s.showEmpty)
+  W.border:SetChecked(s.border)
+  W.shape:Select(s.shape)
+  W.position:Select(s.position)
+  W.size:SetTo(s.size)
+  W.width:SetTo(s.width)
+  W.spacing:SetTo(s.spacing)
+  W.offsetX:SetTo(s.offsetX)
+  W.offsetY:SetTo(s.offsetY)
+  W.borderSize:SetTo(s.borderSize)
+  W.width:SetActive(s.shape == "rectangle")
+  W.borderSize:SetActive(s.border)
+  refreshing = false
+  for _, swatch in ipairs(W.swatches) do
+    swatch:Refresh()
+  end
+  RefreshComboPreview()
+end
+
+function comboPage.Default()
+  cp.Reset()
+end
+
+local function ChangeCombo(key, value)
+  cp.Set(key, value)
+  comboPage.Refresh()
+end
+
+function comboPage.Build()
+  local W, f = comboPage.W, comboPage.frame
+  local desc = Title(comboPage, "Combo points",
+    "Draws your combo points on the nameplate of your current target: a row of dots, squares or rectangles above "
+    .. "the name, below the health bar or on it, lit as they build, all in the max colour at full points and nothing "
+    .. "at 0. Rogues always, druids in cat form; other classes see nothing (the game itself only shows class "
+    .. "resources on your own personal nameplate). Offsets of 0 centre the row on the health bar. Turned on or off "
+    .. "on the Better Forever page.")
+
+  W.showEmpty = CheckBox(f, "Keep the unlit points visible at 0 points", function(v) ChangeCombo("showEmpty", v) end)
+  W.showEmpty:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", -4, -14)
+  W.border = CheckBox(f, "Dark rim around each point, like the game's own resource displays",
+    function(v) ChangeCombo("border", v) end)
+  W.border:SetPoint("TOPLEFT", W.showEmpty, "BOTTOMLEFT", 0, 2)
+
+  local shapeLabel = Label(f, "Shape")
+  shapeLabel:SetPoint("TOPLEFT", W.border, "BOTTOMLEFT", 4, -12)
+  W.shape = RadioGroup(f, {
+    { value = "dot", label = "Dots" },
+    { value = "square", label = "Squares" },
+    { value = "rectangle", label = "Rectangles" },
+  }, function(v) ChangeCombo("shape", v) end)
+  W.shape.buttons[1]:SetPoint("LEFT", shapeLabel, "LEFT", 90, 0)
+  W.shape.buttons[2]:SetPoint("LEFT", W.shape.buttons[1], "LEFT", 100, 0)
+  W.shape.buttons[3]:SetPoint("LEFT", W.shape.buttons[2], "LEFT", 110, 0)
+
+  local positionLabel = Label(f, "Position")
+  positionLabel:SetPoint("TOPLEFT", shapeLabel, "BOTTOMLEFT", 0, -16)
+  W.position = RadioGroup(f, {
+    { value = "above", label = "Above the name" },
+    { value = "below", label = "Below the health bar" },
+    { value = "center", label = "On the health bar" },
+  }, function(v) ChangeCombo("position", v) end)
+  W.position.buttons[1]:SetPoint("LEFT", positionLabel, "LEFT", 90, 0)
+  W.position.buttons[2]:SetPoint("LEFT", W.position.buttons[1], "LEFT", 150, 0)
+  W.position.buttons[3]:SetPoint("LEFT", W.position.buttons[2], "LEFT", 180, 0)
+
+  -- sliders, two rows of three
+  W.size = Slider(f, "Size", 3, 40, 1, function(v) ChangeCombo("size", v) end)
+  W.size:SetPoint("TOPLEFT", positionLabel, "BOTTOMLEFT", 0, -38)
+  W.width = Slider(f, "Rectangle width", 3, 80, 1, function(v) ChangeCombo("width", v) end)
+  W.width:SetPoint("LEFT", W.size, "RIGHT", 36, 0)
+  W.spacing = Slider(f, "Spacing", 0, 20, 1, function(v) ChangeCombo("spacing", v) end)
+  W.spacing:SetPoint("LEFT", W.width, "RIGHT", 36, 0)
+  W.offsetX = Slider(f, "Horizontal offset", -100, 100, 1, function(v) ChangeCombo("offsetX", v) end)
+  W.offsetX:SetPoint("TOPLEFT", W.size, "BOTTOMLEFT", 0, -58)
+  W.offsetY = Slider(f, "Vertical offset", -100, 100, 1, function(v) ChangeCombo("offsetY", v) end)
+  W.offsetY:SetPoint("LEFT", W.offsetX, "RIGHT", 36, 0)
+  W.borderSize = Slider(f, "Rim thickness", 1, 4, 1, function(v) ChangeCombo("borderSize", v) end)
+  W.borderSize:SetPoint("LEFT", W.offsetY, "RIGHT", 36, 0)
+
+  -- colours, with opacity
+  local colorLabel = Label(f, "Colours")
+  colorLabel:SetPoint("TOPLEFT", W.offsetX, "BOTTOMLEFT", 0, -44)
+  local function ComboSwatch(label, key)
+    return Swatch(f, label, {
+      key = key,
+      get = function() return cp.GetSettings()[key] end,
+      set = function(r, g, b, a) cp.SetColor(key, r, g, b, a) end,
+      hasOpacity = true,
+      onChange = RefreshComboPreview,
+    })
+  end
+  W.swatches = {
+    ComboSwatch("Lit", "color"),
+    ComboSwatch("At max", "colorMax"),
+    ComboSwatch("Unlit", "colorEmpty"),
+    ComboSwatch("Rim", "colorBorder"),
+  }
+  W.swatches[1]:SetPoint("LEFT", colorLabel, "LEFT", 90, 0)
+  W.swatches[2]:SetPoint("LEFT", W.swatches[1], "LEFT", 100, 0)
+  W.swatches[3]:SetPoint("LEFT", W.swatches[2], "LEFT", 120, 0)
+  W.swatches[4]:SetPoint("LEFT", W.swatches[3], "LEFT", 110, 0)
+
+  -- preview: two rows under UIParent, so they can be laid out freely
+  local previewLabel = Label(f, "Preview")
+  previewLabel:SetPoint("TOPLEFT", colorLabel, "BOTTOMLEFT", 0, -24)
+  W.previewSome = cp.NewRow(f)
+  W.previewSome.frame:SetPoint("LEFT", previewLabel, "LEFT", 90, 0)
+  W.previewSome.frame:SetFrameLevel(f:GetFrameLevel() + 2)
+  local someLabel = Label(f, "3 of 5", "GameFontHighlightSmall")
+  someLabel:SetPoint("LEFT", W.previewSome.frame, "RIGHT", 10, 0)
+  W.previewMax = cp.NewRow(f)
+  W.previewMax.frame:SetPoint("LEFT", previewLabel, "LEFT", 300, 0)
+  W.previewMax.frame:SetFrameLevel(f:GetFrameLevel() + 2)
+  local maxLabel = Label(f, "5 of 5", "GameFontHighlightSmall")
+  maxLabel:SetPoint("LEFT", W.previewMax.frame, "RIGHT", 10, 0)
+
+  W.test = Button(f, "Show 3 points on target (8 s)", 200, function() cp.Test(3) end)
+  W.test:SetPoint("TOPLEFT", previewLabel, "BOTTOMLEFT", 0, -24)
+  W.reset = Button(f, "Reset to defaults", 140, function()
+    comboPage.Default()
+    comboPage.Refresh()
+    RefreshVisibility()
+  end)
+  W.reset:SetPoint("LEFT", W.test, "RIGHT", 10, 0)
 end
 
 -- =============================================================================
