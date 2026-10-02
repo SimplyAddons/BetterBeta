@@ -10,6 +10,9 @@
 -- SoulShards.lua     deletes excess Soul Shards (warlocks)
 -- CinematicUltra.lua the "Cinematic Ultra" graphics CVars, with a backup
 -- Options.lua        settings panel and /bb
+--
+-- The Lua lives in src\; the toc, Bindings.xml and creature_types\ stay at
+-- the root, where the client looks for them.
 local DEFAULTS = {
   showFPS = true, -- show the FPS counter after login / reload
 }
