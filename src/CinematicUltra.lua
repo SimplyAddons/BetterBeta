@@ -397,7 +397,7 @@ end
 -- or refused, `hint` for menu settings to do by hand) goes to chat; the popup
 -- only says on or off and that /camp is needed.
 local function Report(on, set, failed, hint)
-  local state = on and "Cinematic Ultra is on." or "Cinematic Ultra is off."
+  local state = on and "Cinematic Ultra is |cff33ff33on|r." or "Cinematic Ultra is |cffff3333off|r."
   local what = state .. " " .. set .. (on and " values set." or " of your own values set back.")
   if #failed > 0 then
     what = what .. " Not taken as given: " .. table.concat(failed, ", ") .. "."
