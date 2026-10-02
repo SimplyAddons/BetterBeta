@@ -10,6 +10,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: CurseForge
 
     env:
       CF_API_KEY: ${{ secrets.TOKEN_CURSE }}
