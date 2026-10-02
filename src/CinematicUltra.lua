@@ -370,37 +370,36 @@ local function ShowPopup(text)
   popup:Show()
 end
 
--- Two chat lines plus the popup, after a switch or an "again". `hint` names
--- menu settings to do by hand because the client refused their CVars.
-local function Report(on, set, failed, hint)
-  local what
-  if on then
-    what = "Cinematic Ultra is on: " .. set .. " console variables set"
-  else
-    what = "Cinematic Ultra is off: " .. set .. " of your original values set back"
+-- Closes the options window so the popup sits over the world, not over a
+-- page of text. Close(true) skips the hop back to the game menu.
+local function CloseOptions()
+  if type(SettingsPanel) == "table" and SettingsPanel:IsShown() then
+    if type(SettingsPanel.Close) == "function" then
+      pcall(SettingsPanel.Close, SettingsPanel, true)
+    else
+      pcall(HideUIPanel, SettingsPanel)
+    end
+  elseif type(InterfaceOptionsFrame) == "table" and InterfaceOptionsFrame:IsShown() then
+    pcall(HideUIPanel, InterfaceOptionsFrame)
   end
-  what = what .. "."
+end
+
+-- After a switch or an "again": the detail (counts, values the client capped
+-- or refused, `hint` for menu settings to do by hand) goes to chat; the popup
+-- only says on or off and that /camp is needed.
+local function Report(on, set, failed, hint)
+  local state = on and "Cinematic Ultra is on." or "Cinematic Ultra is off."
+  local what = state .. " " .. set .. (on and " values set." or " of your own values set back.")
   if #failed > 0 then
-    what = what .. " " .. #failed .. " not taken as given: " .. table.concat(failed, ", ") .. "."
-    local capped, rejected = false, false
-    for _, entry in ipairs(failed) do
-      capped = capped or entry:find("capped at", 1, true) ~= nil
-      rejected = rejected or entry:find("rejected", 1, true) ~= nil
-    end
-    if capped then
-      what = what .. " A capped value is the most this client allows."
-    end
-    if rejected then
-      what = what .. " A rejected value is one this client does not allow at all."
-    end
+    what = what .. " Not taken as given: " .. table.concat(failed, ", ") .. "."
   end
   if hint then
     what = what .. " " .. hint
   end
   Print(what)
   Print(CAMP_WARNING)
-  local extra = on and " Your own values were saved first; the Cinematic Ultra options page shows them." or ""
-  ShowPopup(what .. extra)
+  CloseOptions()
+  ShowPopup(state)
 end
 
 -- -----------------------------------------------------------------------------
