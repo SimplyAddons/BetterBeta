@@ -352,11 +352,12 @@ local function BuildPopup()
   popup:Hide()
   if popup.SetBackdrop then
     popup:SetBackdrop({
-      bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+      bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
       edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
       tile = true, tileSize = 32, edgeSize = 32,
       insets = { left = 11, right = 12, top = 12, bottom = 11 },
     })
+    popup:SetBackdropColor(0, 0, 0, 0.92) -- the stock dialog background is too see-through over the options
   else
     local bg = popup:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
@@ -392,20 +393,6 @@ local function ShowPopup(text)
   popup:Show()
 end
 
--- Closes the options window so the popup sits over the world, not over a
--- page of text. Close(true) skips the hop back to the game menu.
-local function CloseOptions()
-  if type(SettingsPanel) == "table" and SettingsPanel:IsShown() then
-    if type(SettingsPanel.Close) == "function" then
-      pcall(SettingsPanel.Close, SettingsPanel, true)
-    else
-      pcall(HideUIPanel, SettingsPanel)
-    end
-  elseif type(InterfaceOptionsFrame) == "table" and InterfaceOptionsFrame:IsShown() then
-    pcall(HideUIPanel, InterfaceOptionsFrame)
-  end
-end
-
 -- After a switch or an "again": the detail (counts, values the client capped
 -- or refused, `hint` for menu settings to do by hand) goes to chat; the popup
 -- only says on or off and that /camp is needed.
@@ -420,7 +407,6 @@ local function Report(on, set, failed, hint)
   end
   Print(what)
   Print(CAMP_WARNING)
-  CloseOptions()
   ShowPopup(state)
 end
 
