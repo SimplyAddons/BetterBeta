@@ -624,7 +624,7 @@ function main.Build()
     onChange = function(v) ChangeToggle(function() cu.Set("enabled", v) end) end,
   })
 
-  local note = Paragraph(f, "Type /bb or /bf to open this panel.")
+  local note = Paragraph(f, "Type |cff40e0d0/bb|r or |cff40e0d0/bf|r to open this panel.")
   note:SetPoint("TOPLEFT", W.ultra, "BOTTOMLEFT", 0, -12)
 end
 
