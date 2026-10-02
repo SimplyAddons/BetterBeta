@@ -24,7 +24,7 @@
 -- only on our own categories. The pre-10.0 options frame has no such switch,
 -- there every page is always listed.
 
-local _, addon = ...
+local addonName, addon = ...
 local Print = addon.Print or print
 local general = addon.general
 local tip = addon.tooltip
@@ -438,59 +438,194 @@ end
 
 local main = NewPage("BetterForeverOptionsPanel", MAIN_TITLE)
 local pages = {}          -- sub-pages in list order, filled in below
-local RefreshVisibility   -- forward declaration; defined with the registration
+local RefreshVisibility   -- forward declarations; defined with the registration
+local OpenPage
 
 -- =============================================================================
--- Main page: one toggle per function
+-- Main page: a card per function with its icon, name, one line about it, a
+-- Settings button while it is on, and the on/off tick. Clicking anywhere on a
+-- card toggles it; an off card is greyed out.
 -- =============================================================================
+local CARD_HEIGHT = 54
+local CARD_GAP = 4
+local CARD_ICON = 36
+local BLIZZARD_ICONS = "Interface\\Icons\\"
+local OWN_ICONS = "Interface\\AddOns\\" .. addonName .. "\\creature_types\\"
+local ICON_CROP = 0.07 -- trims the built-in rim of Blizzard's icons (ours have none)
+
 local function ChangeToggle(apply)
   apply()
   RefreshVisibility()
   main.Refresh()
 end
 
-function main.Build()
-  local W, f = main.W, main.frame
-  local desc = Title(main, "Better Forever",
-    "Tick what you want on. Each function you tick gets its own page under Better Forever in the list on the left.")
-
-  local function Row(above, label, description, onChange)
-    local cb = CheckBox(f, label, onChange, "GameFontNormal")
-    if above.desc then
-      cb:SetPoint("TOPLEFT", above.desc, "BOTTOMLEFT", -30, -10)
-    else
-      cb:SetPoint("TOPLEFT", above, "BOTTOMLEFT", -4, -16)
+local function PageByTitle(title)
+  for _, page in ipairs(pages) do
+    if page.title == title then
+      return page
     end
-    cb.desc = Paragraph(f, description, CONTENT_WIDTH - 30)
-    cb.desc:SetPoint("TOPLEFT", cb, "BOTTOMLEFT", 30, 2)
-    return cb
+  end
+end
+
+-- spec: icon, label, description, page (its settings page, may be nil),
+-- onChange(on)
+local function Card(parent, above, spec)
+  local card = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  card:SetSize(CONTENT_WIDTH, CARD_HEIGHT)
+  if above then
+    card:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, -CARD_GAP)
+  end
+  if card.SetBackdrop then
+    card:SetBackdrop({
+      bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12,
+      insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+  end
+  card.on = false
+
+  card.icon = card:CreateTexture(nil, "ARTWORK")
+  card.icon:SetSize(CARD_ICON, CARD_ICON)
+  card.icon:SetPoint("LEFT", 10, 0)
+  card.icon:SetTexture(spec.icon)
+  if spec.icon:find(BLIZZARD_ICONS, 1, true) == 1 then
+    card.icon:SetTexCoord(ICON_CROP, 1 - ICON_CROP, ICON_CROP, 1 - ICON_CROP)
   end
 
-  W.fps = Row(desc, "FPS counter",
-    "Keeps the FPS counter on screen after you log in or reload.",
-    function(v) ChangeToggle(function() general.Set("showFPS", v) end) end)
-  W.tip = Row(W.fps, "Creature type above NPC tooltips",
-    "Shows what kind of creature an NPC is (Beast, Undead, Humanoid, ...) above its tooltip.",
-    function(v) ChangeToggle(function() tip.Set("enabled", v) end) end)
-  W.icon = Row(W.tip, "Creature type icon on nameplates",
-    "Shows a small creature type icon next to nameplates.",
-    function(v) ChangeToggle(function() ci.Set("enabled", v) end) end)
-  W.combo = Row(W.icon, "Combo points on the target's nameplate",
-    "Shows your combo points on your target's nameplate (rogues, and druids in cat form).",
-    function(v) ChangeToggle(function() cp.Set("enabled", v) end) end)
-  W.wand = Row(W.combo, "Wand indicator",
-    "Shows an icon on screen while your wand is shooting.",
-    function(v) ChangeToggle(function() wi.Set("enabled", v) end) end)
-  W.shards = Row(W.wand, "Soul Shard reaper (warlocks)",
-    "Deletes Soul Shards above a limit you set, one each time you cast or press a key.",
-    function(v) ChangeToggle(function() ss.Set("enabled", v) end) end)
+  card.check = CreateFrame("CheckButton", nil, card, "UICheckButtonTemplate")
+  card.check:SetSize(28, 28)
+  card.check:SetPoint("RIGHT", -8, 0)
+  card.check:SetScript("OnClick", function(self)
+    if not refreshing then
+      spec.onChange(self:GetChecked() and true or false)
+    end
+  end)
 
-  W.ultra = Row(W.shards, "Cinematic Ultra",
-    "Switches on the Cinematic Ultra graphics settings. Your own settings are saved first and come back when you switch it off. Type /camp afterwards.",
-    function(v) ChangeToggle(function() cu.Set("enabled", v) end) end)
+  card.settings = Button(card, "Settings", 76, function()
+    if spec.page then
+      OpenPage(spec.page)
+    end
+  end)
+  card.settings:SetPoint("RIGHT", card.check, "LEFT", -8, 0)
+
+  card.title = Label(card, spec.label, "GameFontNormal")
+  card.title:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", 10, -1)
+  card.desc = Label(card, spec.description, "GameFontHighlightSmall")
+  card.desc:SetPoint("TOPLEFT", card.title, "BOTTOMLEFT", 0, -3)
+  card.desc:SetPoint("RIGHT", card.settings, "LEFT", -10, 0)
+  card.desc:SetJustifyH("LEFT")
+  card.desc:SetWordWrap(true)
+
+  function card:Shade(hover)
+    if not self.SetBackdropColor then
+      return
+    end
+    local base = (self.on and 0.10 or 0.04) + (hover and 0.08 or 0)
+    self:SetBackdropColor(base, base, base, 0.7)
+    if self.on then
+      self:SetBackdropBorderColor(0.85, 0.65, 0.15, hover and 1 or 0.8)
+    else
+      self:SetBackdropBorderColor(0.45, 0.45, 0.45, hover and 1 or 0.7)
+    end
+  end
+
+  function card:SetOn(on)
+    self.on = on and true or false
+    self.check:SetChecked(self.on)
+    self.icon:SetDesaturated(not self.on)
+    self.icon:SetAlpha(self.on and 1 or 0.45)
+    self.title:SetFontObject(self.on and "GameFontNormal" or "GameFontDisable")
+    self.settings:SetShown(self.on and spec.page ~= nil)
+    self:Shade(self:IsMouseOver())
+  end
+
+  -- the whole card is a button and lights up under the mouse
+  card:EnableMouse(true)
+  card:SetScript("OnEnter", function(self) self:Shade(true) end)
+  card:SetScript("OnLeave", function(self) self:Shade(false) end)
+  card:SetScript("OnMouseUp", function(self, button)
+    if button == "LeftButton" and self:IsMouseOver() then
+      self.check:Click()
+    end
+  end)
+  card:SetOn(false)
+  return card
+end
+
+function main.Build()
+  local W, f = main.W, main.frame
+
+  local title = Label(f, MAIN_TITLE, "GameFontNormalLarge")
+  title:SetPoint("TOPLEFT", X0, -16)
+  local getMeta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+  local version = getMeta and getMeta(addonName, "Version")
+  if type(version) == "string" and version ~= "" and version:sub(1, 1) ~= "@" then
+    local v = Label(f, "v" .. version, "GameFontDisableSmall")
+    v:SetPoint("LEFT", title, "RIGHT", 8, -1)
+  end
+  local sub = Paragraph(f, "Small fixes for the WoW Forever client. Tick what you want on; Settings opens a function's page.")
+  sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
+  local rule = f:CreateTexture(nil, "ARTWORK")
+  rule:SetColorTexture(0.85, 0.65, 0.15, 0.5)
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", sub, "BOTTOMLEFT", 0, -10)
+  rule:SetPoint("RIGHT", sub, "RIGHT", 0, 0)
+
+  local types = PageByTitle("Creature Types")
+  W.fps = Card(f, nil, {
+    icon = BLIZZARD_ICONS .. "INV_Misc_PocketWatch_01",
+    label = "FPS counter",
+    description = "Keeps the FPS counter on screen after you log in or reload.",
+    page = PageByTitle("FPS Counter"),
+    onChange = function(v) ChangeToggle(function() general.Set("showFPS", v) end) end,
+  })
+  W.fps:SetPoint("TOPLEFT", rule, "BOTTOMLEFT", 0, -10)
+  W.tip = Card(f, W.fps, {
+    icon = OWN_ICONS .. "beast",
+    label = "Creature type above NPC tooltips",
+    description = "Shows what kind of creature an NPC is (Beast, Undead, Humanoid, ...) above its tooltip.",
+    page = types,
+    onChange = function(v) ChangeToggle(function() tip.Set("enabled", v) end) end,
+  })
+  W.icon = Card(f, W.tip, {
+    icon = OWN_ICONS .. "undead",
+    label = "Creature type icon on nameplates",
+    description = "Shows a small creature type icon next to nameplates.",
+    page = types,
+    onChange = function(v) ChangeToggle(function() ci.Set("enabled", v) end) end,
+  })
+  W.combo = Card(f, W.icon, {
+    icon = BLIZZARD_ICONS .. "Ability_Rogue_Eviscerate",
+    label = "Combo points on the target's nameplate",
+    description = "Shows your combo points on your target's nameplate (rogues, and druids in cat form).",
+    page = PageByTitle("Combo Points"),
+    onChange = function(v) ChangeToggle(function() cp.Set("enabled", v) end) end,
+  })
+  W.wand = Card(f, W.combo, {
+    icon = BLIZZARD_ICONS .. "Ability_ShootWand",
+    label = "Wand indicator",
+    description = "Shows an icon on screen while your wand is shooting.",
+    page = PageByTitle("Wand Indicator"),
+    onChange = function(v) ChangeToggle(function() wi.Set("enabled", v) end) end,
+  })
+  W.shards = Card(f, W.wand, {
+    icon = BLIZZARD_ICONS .. "INV_Misc_Gem_Amethyst_02",
+    label = "Soul Shard reaper (warlocks)",
+    description = "Deletes Soul Shards above a limit you set, one each time you cast or press a key.",
+    page = PageByTitle("Soul Shards"),
+    onChange = function(v) ChangeToggle(function() ss.Set("enabled", v) end) end,
+  })
+  W.ultra = Card(f, W.shards, {
+    icon = BLIZZARD_ICONS .. "INV_Misc_Spyglass_03",
+    label = "Cinematic Ultra",
+    description = "Switches on the Cinematic Ultra graphics settings. Your own settings are saved first and come back when you switch it off. Type /camp afterwards.",
+    page = PageByTitle("Cinematic Ultra"),
+    onChange = function(v) ChangeToggle(function() cu.Set("enabled", v) end) end,
+  })
 
   local note = Paragraph(f, "Type /bb or /bf to open this panel.")
-  note:SetPoint("TOPLEFT", W.ultra.desc, "BOTTOMLEFT", -30, -24)
+  note:SetPoint("TOPLEFT", W.ultra, "BOTTOMLEFT", 0, -12)
 end
 
 function main.Refresh()
@@ -499,13 +634,13 @@ function main.Refresh()
   end
   local W = main.W
   refreshing = true
-  W.fps:SetChecked(general.GetSettings().showFPS)
-  W.tip:SetChecked(tip.GetSettings().enabled)
-  W.icon:SetChecked(ci.GetSettings().enabled)
-  W.combo:SetChecked(cp.GetSettings().enabled)
-  W.wand:SetChecked(wi.GetSettings().enabled)
-  W.shards:SetChecked(ss.GetSettings().enabled)
-  W.ultra:SetChecked(cu.GetSettings().enabled)
+  W.fps:SetOn(general.GetSettings().showFPS)
+  W.tip:SetOn(tip.GetSettings().enabled)
+  W.icon:SetOn(ci.GetSettings().enabled)
+  W.combo:SetOn(cp.GetSettings().enabled)
+  W.wand:SetOn(wi.GetSettings().enabled)
+  W.shards:SetOn(ss.GetSettings().enabled)
+  W.ultra:SetOn(cu.GetSettings().enabled)
   refreshing = false
 end
 
@@ -1110,6 +1245,7 @@ local category -- the main Better Forever category (modern Settings API only)
 
 if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
   category = Settings.RegisterCanvasLayoutCategory(main.frame, MAIN_TITLE)
+  main.category = category
   for _, page in ipairs(pages) do
     if Settings.RegisterCanvasLayoutSubcategory then
       page.category = Settings.RegisterCanvasLayoutSubcategory(category, page.frame, page.title)
@@ -1168,6 +1304,17 @@ RefreshVisibility = function()
 end
 
 main.frame:HookScript("OnShow", function() RefreshVisibility() end)
+
+-- Opens a page in the options window (the Settings buttons on the main page).
+OpenPage = function(page)
+  RefreshVisibility()
+  if page.category and Settings and Settings.OpenToCategory then
+    pcall(Settings.OpenToCategory, page.category.GetID and page.category:GetID() or page.frame.name)
+  elseif InterfaceOptionsFrame_OpenToCategory then
+    InterfaceOptionsFrame_OpenToCategory(page.frame)
+    InterfaceOptionsFrame_OpenToCategory(page.frame) -- old clients need the second call
+  end
+end
 
 -- Settings are loaded on ADDON_LOADED; by PLAYER_LOGIN every module has its
 -- saved values, so that is when the initial page list is decided.
