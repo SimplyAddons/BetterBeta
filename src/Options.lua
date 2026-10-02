@@ -4,8 +4,8 @@
 -- per feature, with the settings of each on sub-pages: FPS Counter, Creature
 -- Types (tooltip box + nameplate icon, each section shown while that feature
 -- is on), Combo Points, Wand Indicator, Soul Shards and Cinematic Ultra. A
--- sub-page with nothing on is hidden from the list. /bb opens the main page;
--- "/bb reap" is the line the Soul Shard macro runs and opens nothing.
+-- sub-page with nothing on is hidden from the list. /bb or /bf opens the main
+-- page; "/bb reap" is the line the Soul Shard macro runs and opens nothing.
 -- Everything applies immediately and is saved in BetterForeverDB.
 --
 -- Widgets are hand-built from base frame types plus the templates every
@@ -452,8 +452,7 @@ end
 function main.Build()
   local W, f = main.W, main.frame
   local desc = Title(main, "Better Forever",
-    "Small fixes for the WoW Forever client. Tick a function to turn it on; its settings are then on a page under "
-    .. "Better Forever in the list on the left (click the arrow next to Better Forever to expand it).")
+    "Tick what you want on. Each function you tick gets its own page under Better Forever in the list on the left.")
 
   local function Row(above, label, description, onChange)
     local cb = CheckBox(f, label, onChange, "GameFontNormal")
@@ -468,29 +467,29 @@ function main.Build()
   end
 
   W.fps = Row(desc, "FPS counter",
-    "Shows the framerate counter (the one CTRL+R toggles) after login and after every /reload, because a reload hides it again.",
+    "Keeps the FPS counter on screen after you log in or reload.",
     function(v) ChangeToggle(function() general.Set("showFPS", v) end) end)
   W.tip = Row(W.fps, "Creature type above NPC tooltips",
-    "Shows an NPC's creature type (Humanoid, Beast, Undead and so on) with its icon in a small box on top of its tooltip.",
+    "Shows what kind of creature an NPC is (Beast, Undead, Humanoid, ...) above its tooltip.",
     function(v) ChangeToggle(function() tip.Set("enabled", v) end) end)
   W.icon = Row(W.tip, "Creature type icon on nameplates",
-    "Shows an icon for the creature type (beast, humanoid, undead, ...) left of the health bar on nameplates.",
+    "Shows a small creature type icon next to nameplates.",
     function(v) ChangeToggle(function() ci.Set("enabled", v) end) end)
   W.combo = Row(W.icon, "Combo points on the target's nameplate",
-    "Draws your combo points in a row on your target's nameplate, lit as they build and all in a second colour at full points (rogues, and druids in cat form).",
+    "Shows your combo points on your target's nameplate (rogues, and druids in cat form).",
     function(v) ChangeToggle(function() cp.Set("enabled", v) end) end)
   W.wand = Row(W.combo, "Wand indicator",
-    "Shows your wand's icon on screen while Shoot is on, with a bar that fills up until the next shot.",
+    "Shows an icon on screen while your wand is shooting.",
     function(v) ChangeToggle(function() wi.Set("enabled", v) end) end)
   W.shards = Row(W.wand, "Soul Shard reaper (warlocks)",
-    "Deletes the Soul Shards above a limit you set. The game lets an addon destroy an item only during your own keypress, one per press, so it happens inside the Drain Soul macro on its page, with a bound key or with a button there.",
+    "Deletes Soul Shards above a limit you set, one each time you cast or press a key.",
     function(v) ChangeToggle(function() ss.Set("enabled", v) end) end)
 
   W.ultra = Row(W.shards, "Cinematic Ultra",
-    "Sets the " .. #cu.CVARS .. " graphics console variables of the Cinematic Ultra guide (the menu's Render Scale 133% and 2x MSAA included, then sharpening, 4K shadows, full reflections, far more clutter and draw distance, heavy weather, every spell particle) after saving your own values; switching it off puts them back. After each switch you must type /camp yourself: the game saves them only on a clean logout.",
+    "Switches on the Cinematic Ultra graphics settings. Your own settings are saved first and come back when you switch it off. Type /camp afterwards.",
     function(v) ChangeToggle(function() cu.Set("enabled", v) end) end)
 
-  local note = Paragraph(f, "/bb opens this panel from the chat line.")
+  local note = Paragraph(f, "Type /bb or /bf to open this panel.")
   note:SetPoint("TOPLEFT", W.ultra.desc, "BOTTOMLEFT", -30, -24)
 end
 
@@ -534,14 +533,12 @@ end
 function fps.Build()
   local W, f = fps.W, fps.frame
   local desc = Title(fps, "FPS counter",
-    "Shows the framerate counter Blizzard toggles with CTRL+R after login and after every /reload, because a reload "
-    .. "hides it again; it sits where Blizzard puts it, by the micro menu. Turning this function off on the Better Forever "
-    .. "page hides the counter, and with it off a login or reload leaves the counter alone. The buttons below act on "
-    .. "the counter right now without changing the setting.")
+    "Keeps the FPS counter (the one CTRL+R toggles) on screen after you log in or reload. "
+    .. "The buttons show or hide it right now.")
 
-  W.show = Button(f, "Show now", 110, function() general.SetFramerateShown(true) end)
+  W.show = Button(f, "Show", 110, function() general.SetFramerateShown(true) end)
   W.show:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -18)
-  W.hide = Button(f, "Hide now", 110, function() general.SetFramerateShown(false) end)
+  W.hide = Button(f, "Hide", 110, function() general.SetFramerateShown(false) end)
   W.hide:SetPoint("LEFT", W.show, "RIGHT", 10, 0)
 end
 
@@ -624,17 +621,15 @@ end
 function typesPage.Build()
   local W, f = typesPage.W, typesPage.frame
   W.desc = Title(typesPage, "Creature types",
-    "Shows an NPC's creature type (Humanoid, Beast, Undead, Demon, Elemental, ...) in a small box on top of its tooltip "
-    .. "and as an icon left of the health bar on nameplates, so you can see at a glance what Sap, Blind or a "
-    .. "tracking ability will work on. Players get neither. Each is turned on or off on the Better Forever page; the "
-    .. "settings of the ones that are on are below.")
+    "Shows what kind of creature an NPC is (Beast, Undead, Humanoid, ...): above its tooltip and as an icon next to "
+    .. "its nameplate.")
 
   -- tooltip box
   W.tipHeader = Label(f, "Tooltip box", "GameFontHighlightLarge")
   W.tipHeader:SetPoint("TOPLEFT", W.desc, "BOTTOMLEFT", 0, -20)
   local colorLabel = Label(f, "Colour")
   colorLabel:SetPoint("TOPLEFT", W.tipHeader, "BOTTOMLEFT", 0, -16)
-  W.swatch = Swatch(f, "Creature type text", {
+  W.swatch = Swatch(f, "Text", {
     key = "color",
     get = function() return tip.GetSettings().color end,
     set = function(r, g, b) tip.SetColor(r, g, b) end,
@@ -646,7 +641,7 @@ function typesPage.Build()
 
   -- nameplate icon (the header is anchored by LayoutSections)
   W.iconHeader = Label(f, "Nameplate icon", "GameFontHighlightLarge")
-  W.allPlates = CheckBox(f, "Show on every nameplate (off: only your target's)",
+  W.allPlates = CheckBox(f, "Show on all nameplates, not only your target's",
     function(v) ChangeIcon("allPlates", v) end)
   W.allPlates:SetPoint("TOPLEFT", W.iconHeader, "BOTTOMLEFT", -4, -10)
   W.box = CheckBox(f, "Show icon in a box", function(v) ChangeIcon("box", v) end)
@@ -654,7 +649,7 @@ function typesPage.Build()
 
   local iconColorLabel = Label(f, "Colour")
   iconColorLabel:SetPoint("TOPLEFT", W.box, "BOTTOMLEFT", 4, -12)
-  W.iconSwatch = Swatch(f, "Icon colour (white shows it as drawn)", {
+  W.iconSwatch = Swatch(f, "Icon (white = as drawn)", {
     key = "iconColor",
     get = function() return ci.GetSettings().color end,
     set = function(r, g, b) ci.SetColor(r, g, b) end,
@@ -680,7 +675,7 @@ function typesPage.Build()
   W.preview:SetPoint("LEFT", previewLabel, "LEFT", 90, 0)
   W.preview:SetFrameLevel(f:GetFrameLevel() + 2)
 
-  W.test = Button(f, "Show on target (8 s)", 170, function() ci.Test() end)
+  W.test = Button(f, "Test on my target", 170, function() ci.Test() end)
   W.test:SetPoint("TOPLEFT", previewLabel, "BOTTOMLEFT", 0, -34)
 
   W.iconWidgets = { W.iconHeader, W.allPlates, W.box, iconColorLabel, W.iconSwatch, W.size, W.gap, W.offsetX, W.offsetY,
@@ -753,15 +748,11 @@ end
 function comboPage.Build()
   local W, f = comboPage.W, comboPage.frame
   local desc = Title(comboPage, "Combo points",
-    "Draws your combo points on the nameplate of your current target: a row of dots, squares or rectangles above "
-    .. "the name, below the health bar or on it, lit as they build, all in the max colour at full points and nothing "
-    .. "at 0. Rogues always, druids in cat form; other classes see nothing (the game itself only shows class "
-    .. "resources on your own personal nameplate). Offsets of 0 centre the row on the health bar. Turned on or off "
-    .. "on the Better Forever page.")
+    "Shows your combo points on your target's nameplate. Rogues always, druids in cat form.")
 
-  W.showEmpty = CheckBox(f, "Keep the unlit points visible at 0 points", function(v) ChangeCombo("showEmpty", v) end)
+  W.showEmpty = CheckBox(f, "Show the empty points too", function(v) ChangeCombo("showEmpty", v) end)
   W.showEmpty:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", -4, -14)
-  W.border = CheckBox(f, "Dark rim around each point, like the game's own resource displays",
+  W.border = CheckBox(f, "Dark border around each point",
     function(v) ChangeCombo("border", v) end)
   W.border:SetPoint("TOPLEFT", W.showEmpty, "BOTTOMLEFT", 0, 2)
 
@@ -798,7 +789,7 @@ function comboPage.Build()
   W.offsetX:SetPoint("TOPLEFT", W.size, "BOTTOMLEFT", 0, -58)
   W.offsetY = Slider(f, "Vertical offset", -100, 100, 1, function(v) ChangeCombo("offsetY", v) end)
   W.offsetY:SetPoint("LEFT", W.offsetX, "RIGHT", 36, 0)
-  W.borderSize = Slider(f, "Rim thickness", 1, 4, 1, function(v) ChangeCombo("borderSize", v) end)
+  W.borderSize = Slider(f, "Border thickness", 1, 4, 1, function(v) ChangeCombo("borderSize", v) end)
   W.borderSize:SetPoint("LEFT", W.offsetY, "RIGHT", 36, 0)
 
   -- colours, with opacity
@@ -817,7 +808,7 @@ function comboPage.Build()
     ComboSwatch("Lit", "color"),
     ComboSwatch("At max", "colorMax"),
     ComboSwatch("Unlit", "colorEmpty"),
-    ComboSwatch("Rim", "colorBorder"),
+    ComboSwatch("Border", "colorBorder"),
   }
   W.swatches[1]:SetPoint("LEFT", colorLabel, "LEFT", 90, 0)
   W.swatches[2]:SetPoint("LEFT", W.swatches[1], "LEFT", 100, 0)
@@ -838,7 +829,7 @@ function comboPage.Build()
   local maxLabel = Label(f, "5 of 5", "GameFontHighlightSmall")
   maxLabel:SetPoint("LEFT", W.previewMax.frame, "RIGHT", 10, 0)
 
-  W.test = Button(f, "Show 3 points on target (8 s)", 200, function() cp.Test(3) end)
+  W.test = Button(f, "Test on my target", 170, function() cp.Test(3) end)
   W.test:SetPoint("TOPLEFT", previewLabel, "BOTTOMLEFT", 0, -24)
   W.reset = Button(f, "Reset to defaults", 140, function()
     comboPage.Default()
@@ -889,17 +880,15 @@ wi.onMoved = wandPage.Refresh -- dragging the indicator moves the position slide
 function wandPage.Build()
   local W, f = wandPage.W, wandPage.frame
   local desc = Title(wandPage, "Wand indicator",
-    "While Shoot is on, your wand's icon shows on screen with a pulsing rim, a bar that fills up until the next shot "
-    .. "and a comic-book sound under it (\"ZAP!\", \"POOF!\", \"SHAZAM!\", ...) that changes with every shot. If a "
-    .. "shot is overdue (out of range, not facing the target, ...) the rim stops pulsing, the icon turns grey and it "
-    .. "goes \"fizzle...\". It shows for a hunter's Auto Shot too. Turned on or off on the Better Forever page.")
+    "Shows your wand on screen while it is shooting, with a bar that fills up until the next shot and a comic-book "
+    .. "word on every shot. If a shot is late, it turns grey and says \"fizzle...\".")
 
-  W.unlock = CheckBox(f, "Unlock to move (shows it until you untick this; drag it where you want it)",
+  W.unlock = CheckBox(f, "Unlock so you can drag it",
     function(v) wi.SetUnlocked(v) wandPage.Refresh() end)
   W.unlock:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", -4, -14)
-  W.timer = CheckBox(f, "Show the bar that fills up until the next shot", function(v) ChangeWand("timer", v) end)
+  W.timer = CheckBox(f, "Show the bar to the next shot", function(v) ChangeWand("timer", v) end)
   W.timer:SetPoint("TOPLEFT", W.unlock, "BOTTOMLEFT", 0, 2)
-  W.text = CheckBox(f, "Show a comic-book sound on every shot (\"ZAP!\", \"POOF!\", ...)",
+  W.text = CheckBox(f, "Show a comic-book word on every shot (ZAP!, POOF!, ...)",
     function(v) ChangeWand("text", v) end)
   W.text:SetPoint("TOPLEFT", W.timer, "BOTTOMLEFT", 0, 2)
 
@@ -952,12 +941,12 @@ function shardsPage.Refresh()
   local count = ss.Count()
   local status
   if not count then
-    status = "Keeping up to " .. s.maxShards .. " Soul Shards (the bags could not be read)."
+    status = "Your bags could not be read."
   elseif count > s.maxShards then
-    status = "You are carrying " .. count .. " Soul Shards and keeping up to " .. s.maxShards .. ": " .. (count - s.maxShards)
-      .. " will go, one per cast, keypress or click."
+    status = "You have " .. count .. " Soul Shards and keep " .. s.maxShards .. ": " .. (count - s.maxShards)
+      .. " will be deleted, one per cast or press."
   else
-    status = "You are carrying " .. count .. " Soul Shard" .. (count == 1 and "" or "s") .. " and keeping up to "
+    status = "You have " .. count .. " Soul Shard" .. (count == 1 and "" or "s") .. " and keep "
       .. s.maxShards .. ": nothing to delete."
   end
   W.status:SetText(status)
@@ -970,43 +959,37 @@ end
 function shardsPage.Build()
   local W, f = shardsPage.W, shardsPage.frame
   local desc = Title(shardsPage, "Soul Shards",
-    "Keeps the Soul Shards in your bags at the limit below by deleting the ones above it. The game lets an addon "
-    .. "destroy an item only while it is handling your own keypress or click, never on its own when a shard arrives "
-    .. "(from there it could only pop up a \"destroy item?\" box), and only one item per keypress. So the deleting "
-    .. "happens inside the Drain Soul macro below, with a key bound under Options > Keybindings > AddOns > Better "
-    .. "Forever, or with the button here; each press removes one shard. Turned on or off on the Better Forever page.")
+    "Deletes Soul Shards above the limit below. The game only allows this while you press a key or click, one shard "
+    .. "at a time, so it happens from the macro below, from a key you bind, or from the button here.")
 
   W.status = Paragraph(f, "", CONTENT_WIDTH)
   W.status:SetFontObject("GameFontHighlight")
   W.status:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -10)
 
-  W.max = Slider(f, "Maximum Soul Shards to keep", 0, 50, 1, function(v) ss.Set("maxShards", v) shardsPage.Refresh() end)
+  W.max = Slider(f, "Shards to keep", 0, 50, 1, function(v) ss.Set("maxShards", v) shardsPage.Refresh() end)
   W.max:SetPoint("TOPLEFT", W.status, "BOTTOMLEFT", 0, -38)
-  W.delete = Button(f, "Delete one excess shard now", 200, function() ss.DeleteExcess() shardsPage.Refresh() end)
+  W.delete = Button(f, "Delete one now", 140, function() ss.DeleteExcess() shardsPage.Refresh() end)
   W.delete:SetPoint("LEFT", W.max, "RIGHT", 36, 0)
 
-  local zeroNote = Paragraph(f, "Because the macro deletes before it casts, you hold one shard above the limit after "
-    .. "each kill until the next cast. Set the limit to 0 to carry only the shard from your last kill: the cast "
-    .. "clears you out and the kill hands you a fresh one, so you may briefly have none.")
+  local zeroNote = Paragraph(f, "The macro deletes before it casts, so you hold one shard above the limit until "
+    .. "your next cast. Set the limit to 0 to keep only your newest shard.")
   zeroNote:SetPoint("TOPLEFT", W.max, "BOTTOMLEFT", 0, -22)
 
-  W.macroHeader = Label(f, "Automatic deletion (macro)", "GameFontHighlightLarge")
+  W.macroHeader = Label(f, "Macro", "GameFontHighlightLarge")
   W.macroHeader:SetPoint("TOPLEFT", zeroNote, "BOTTOMLEFT", 0, -20)
-  local macroText = Paragraph(f, "Cast Drain Soul through this macro and every shard above the limit is deleted "
-    .. "silently before the cast. The shard from the current kill arrives after the channel ends and goes on the "
-    .. "next cast. If your bags are full, one shard is deleted first so the new one has somewhere to go. Copy it "
-    .. "into /macro, or click the button, then drag the macro onto your action bar in place of Drain Soul.")
+  local macroText = Paragraph(f, "Use this instead of Drain Soul: it deletes the extra shards, then casts. Copy it "
+    .. "into /macro or click the button, then put it on your action bar.")
   macroText:SetPoint("TOPLEFT", W.macroHeader, "BOTTOMLEFT", 0, -8)
   W.macro = CopyBox(f, CONTENT_WIDTH, 72)
   W.macro:SetPoint("TOPLEFT", macroText, "BOTTOMLEFT", 0, -10)
   W.macro:SetValues(ss.MACRO_BODY)
-  local hint = Paragraph(f, "Click in the box and press CTRL+C to copy the macro.")
+  local hint = Paragraph(f, "Click in the box, then press CTRL+C to copy.")
   hint:SetPoint("TOPLEFT", W.macro, "BOTTOMLEFT", 0, -6)
-  W.create = Button(f, "Create the macro for me", 180, function() ss.CreateMacro() end)
+  W.create = Button(f, "Create macro", 140, function() ss.CreateMacro() end)
   W.create:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
 
-  local keyNote = Paragraph(f, "A key can do the same as the macro's reap line: Options > Keybindings > AddOns > "
-    .. "Better Forever > " .. ss.KEYBINDING .. ".")
+  local keyNote = Paragraph(f, "You can also bind a key: Options > Keybindings > AddOns > Better Forever > "
+    .. ss.KEYBINDING .. ".")
   keyNote:SetPoint("TOPLEFT", W.create, "BOTTOMLEFT", 0, -12)
 
   W.reset = Button(f, "Reset to defaults", 140, function()
@@ -1049,18 +1032,17 @@ function ultraPage.Refresh()
   local status
   if st.enabled then
     if st.differ == 0 then
-      status = "On: the Cinematic Ultra settings are in effect."
+      status = "On."
     else
-      status = "On, but " .. st.differ .. " of the " .. st.total .. " values differ from the Cinematic Ultra settings "
-        .. "(compare the right box; Apply again sets them)."
+      status = "On, but " .. st.differ .. " of " .. st.total .. " settings are different. Apply again fixes that."
     end
   elseif not st.haveOriginal then
-    status = "Off: nothing has been changed yet."
+    status = "Off. Nothing has been changed yet."
   elseif st.differ == 0 then
-    status = "Off: your original settings are in effect."
+    status = "Off. Your original settings are in effect."
   else
-    status = "Off, but " .. st.differ .. " of the " .. st.total .. " values differ from your original settings "
-      .. "(Restore again sets them back)."
+    status = "Off, but " .. st.differ .. " of " .. st.total .. " settings are different from your original ones. "
+      .. "Restore again fixes that."
   end
   if st.unsaved then
     status = status .. " " .. cu.CAMP_WARNING
@@ -1081,24 +1063,16 @@ end
 function ultraPage.Build()
   local W, f = ultraPage.W, ultraPage.frame
   local desc = Title(ultraPage, "Cinematic Ultra",
-    "Sets the " .. #cu.CVARS .. " graphics console variables (CVars) of the \"Cinematic Ultra\" guide, its menu step "
-    .. "included: 133% render scale, 2x MSAA where the guide says None (cleaner edges), FidelityFX sharpening, "
-    .. "4096 shadow maps, full water "
-    .. "reflections and ripples, ground "
-    .. "clutter past the slider caps, far object, doodad and terrain detail, heavy weather, every spell particle. "
-    .. "Switching it on (on the Better Forever page) first saves your own values, shown on the left, then applies the "
-    .. "Cinematic Ultra ones; switching it off puts your own values back. The game writes console variables to "
-    .. "Config.wtf only on a clean logout, so after each switch you must type /camp yourself (an addon is not allowed to log you out).")
+    "The Cinematic Ultra graphics settings: a sharper picture, better shadows and water, more detail in the "
+    .. "distance, full weather and spell effects. Your own settings are saved first (left box) and come back when "
+    .. "you switch it off. After each switch, type /camp: the game only keeps these settings after a proper logout.")
 
   W.status = Paragraph(f, "", CONTENT_WIDTH)
   W.status:SetFontObject("GameFontHighlight")
   W.status:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -10)
 
-  W.menuNote = Paragraph(f, "Options > Graphics: the guide also says Render Scale 133% and Anti-Aliasing None there. The "
-    .. "switch sets the render scale and, instead of None, Multisample 2x (supersampling alone leaves edges more jagged); "
-    .. "RenderScale, MSAAQuality and ffxAntiAliasingMode are the variables behind those menu settings, so there is "
-    .. "nothing to change in the menu by hand unless the popup says one of them was refused. Moving those menu "
-    .. "settings later changes the same variables and undoes that part of the switch; the status line shows it.",
+  W.menuNote = Paragraph(f, "Render Scale and Anti-Aliasing under Options > Graphics are part of this. If you change "
+    .. "them there later, that part is undone and the line above says so.",
     CONTENT_WIDTH)
   W.menuNote:SetFontObject("GameFontNormalSmall")
   W.menuNote:SetPoint("TOPLEFT", W.status, "BOTTOMLEFT", 0, -8)
@@ -1108,26 +1082,24 @@ function ultraPage.Build()
   W.origHeader:SetPoint("TOPLEFT", W.menuNote, "BOTTOMLEFT", 0, -14)
   W.original = CopyBox(f, boxWidth, VALUES_BOX_HEIGHT)
   W.original:SetPoint("TOPLEFT", W.origHeader, "BOTTOMLEFT", 0, -4)
-  local curHeader = Label(f, "Current settings (live)")
+  local curHeader = Label(f, "Current settings")
   curHeader:SetPoint("TOPLEFT", W.origHeader, "TOPLEFT", boxWidth + VALUES_BOX_GAP, 0)
   W.current = CopyBox(f, boxWidth, VALUES_BOX_HEIGHT)
   W.current:SetPoint("TOPLEFT", curHeader, "BOTTOMLEFT", 0, -4)
 
   W.again = Button(f, "Apply again", 120, function() cu.ApplyAgain() ultraPage.Refresh() end)
   W.again:SetPoint("TOPLEFT", W.original, "BOTTOMLEFT", 0, -12)
-  W.read = Button(f, "Read again", 110, function() ultraPage.Refresh() end)
+  W.read = Button(f, "Refresh", 110, function() ultraPage.Refresh() end)
   W.read:SetPoint("LEFT", W.again, "RIGHT", 10, 0)
-  W.retake = Button(f, "Use current values as original", 220, function()
+  W.retake = Button(f, "Save current as original", 190, function()
     cu.UseCurrentAsOriginal()
     ultraPage.Refresh()
   end)
   W.retake:SetPoint("LEFT", W.read, "RIGHT", 10, 0)
 
-  local note = Paragraph(f, "Click in a box to select everything, then press CTRL+C to copy it; each line is a "
-    .. "/console command you can also type one at a time to put a value back by hand. Apply again sets the "
-    .. "Cinematic Ultra values once more (while off, Restore again sets your original ones); Read again re-reads "
-    .. "the right box. Use current values as original copies the right box over the left one, for when the saved "
-    .. "originals are wrong: switching on with a fresh settings file saves whatever was live at that moment.")
+  local note = Paragraph(f, "Click in a box, then press CTRL+C to copy it. Each line can be typed in chat to set "
+    .. "one value by hand. Save current as original replaces the left box with the right one, if the saved "
+    .. "settings are ever wrong.")
   note:SetPoint("TOPLEFT", W.again, "BOTTOMLEFT", 0, -12)
 end
 
@@ -1209,10 +1181,11 @@ if IsLoggedIn and IsLoggedIn() then
   RefreshVisibility()
 end
 
--- /bb, the addon's only slash command, opens the main page. Its one argument,
--- "reap", is the line the Soul Shard macro runs: it deletes one excess shard
--- inside the keypress and opens nothing (silent while that function is off).
+-- /bb and /bf open the main page. The one argument, "reap", is the line the
+-- Soul Shard macro runs: it deletes one excess shard inside the keypress and
+-- opens nothing (silent while that function is off).
 SLASH_BETTERFOREVER1 = "/bb"
+SLASH_BETTERFOREVER2 = "/bf"
 SlashCmdList.BETTERFOREVER = function(msg)
   if type(msg) == "string" and msg:match("^%s*(%S*)"):lower() == "reap" then
     ss.Reap()
