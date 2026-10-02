@@ -1117,11 +1117,17 @@ function ultraPage.Build()
   W.again:SetPoint("TOPLEFT", W.original, "BOTTOMLEFT", 0, -12)
   W.read = Button(f, "Read again", 110, function() ultraPage.Refresh() end)
   W.read:SetPoint("LEFT", W.again, "RIGHT", 10, 0)
+  W.retake = Button(f, "Use current values as original", 220, function()
+    cu.UseCurrentAsOriginal()
+    ultraPage.Refresh()
+  end)
+  W.retake:SetPoint("LEFT", W.read, "RIGHT", 10, 0)
 
   local note = Paragraph(f, "Click in a box to select everything, then press CTRL+C to copy it; each line is a "
     .. "/console command you can also type one at a time to put a value back by hand. Apply again sets the "
     .. "Cinematic Ultra values once more (while off, Restore again sets your original ones); Read again re-reads "
-    .. "the right box.")
+    .. "the right box. Use current values as original copies the right box over the left one, for when the saved "
+    .. "originals are wrong: switching on with a fresh settings file saves whatever was live at that moment.")
   note:SetPoint("TOPLEFT", W.again, "BOTTOMLEFT", 0, -12)
 end
 

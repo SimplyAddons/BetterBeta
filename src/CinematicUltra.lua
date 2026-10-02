@@ -482,6 +482,25 @@ function cu.ApplyAgain()
   end
 end
 
+-- Replaces the snapshot with the live values, for when the saved one is wrong:
+-- switching on with a fresh saved file while the Cinematic Ultra values were
+-- live records those as the originals. Returns how many values were saved.
+function cu.UseCurrentAsOriginal()
+  local current = ReadAll()
+  if next(current) == nil then
+    Print("Cinematic Ultra: no values could be read, nothing saved")
+    return 0
+  end
+  settings.original = current
+  settings.originalTakenAt = date("%Y-%m-%d %H:%M")
+  local n = 0
+  for _ in pairs(current) do
+    n = n + 1
+  end
+  Print("Cinematic Ultra: the current " .. n .. " values are now saved as your original settings")
+  return n
+end
+
 -- The state in one table, for the options page: whether it is on, whether a
 -- snapshot exists and when it was taken, how many of the CVars differ from
 -- the values the state calls for, and whether CVars were set this session.
