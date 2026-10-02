@@ -5,7 +5,7 @@
 -- Types (tooltip box + nameplate icon, each section shown while that feature
 -- is on), Combo Points, Wand Indicator, Soul Shards and Cinematic Ultra. A
 -- sub-page with nothing on is hidden from the list. /bb or /bf opens the main
--- page; "/bb reap" is the line the Soul Shard macro runs and opens nothing.
+-- page; "/bf reap" is the line the Soul Shard macro runs and opens nothing.
 -- Everything applies immediately and is saved in BetterForeverDB.
 --
 -- Widgets are hand-built from base frame types plus the templates every
@@ -1016,7 +1016,7 @@ end
 local ultraPage = NewPage("BetterForeverCinematicUltraPanel", "Cinematic Ultra")
 pages[#pages + 1] = ultraPage
 
-local VALUES_BOX_HEIGHT = 210
+local VALUES_BOX_HEIGHT = 240
 local VALUES_BOX_GAP = 12
 
 function ultraPage.Enabled()

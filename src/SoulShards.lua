@@ -7,7 +7,7 @@
 -- player's own keypress or click, never from a timer or bag event (from there
 -- all you can do is pop up a "destroy item?" dialog), and only ONE deletion
 -- per keypress. So the deleting happens from inside the Drain Soul macro on
--- the options page ("/bb reap"), from the keybind (Bindings.xml ->
+-- the options page ("/bf reap"), from the keybind (Bindings.xml ->
 -- BetterForever_ReapShards) or from the button on the page; each press removes
 -- one shard. The shard from the current kill arrives after the channel ends
 -- and gets cleaned up on the next cast. If the bags are full and we're at the
@@ -40,11 +40,11 @@ local LIMITS = { -- numeric settings: { min, max }
 local SOUL_SHARD_ITEM_ID = 6265
 local SOUL_BAG_FAMILY = 4 -- the bag family bit of Soul Bags; a free slot there takes a shard
 
--- The Drain Soul macro. "/bb reap" runs inside the keypress, which is the
+-- The Drain Soul macro. "/bf reap" runs inside the keypress, which is the
 -- only time the client lets an addon destroy an item.
 local MACRO_NAME = "Reap Shards"
 local MACRO_ICON = "Spell_Shadow_Haunting" -- Drain Soul's icon
-local MACRO_BODY = "#showtooltip Drain Soul\n/bb reap\n/cast Drain Soul"
+local MACRO_BODY = "#showtooltip Drain Soul\n/bf reap\n/cast Drain Soul"
 
 local function IsSecret(value)
   return type(issecretvalue) == "function" and issecretvalue(value) or false
