@@ -1143,9 +1143,9 @@ function shardsPage.Build()
 end
 
 -- =============================================================================
--- Cinematic Ultra page. Always listed, on or off: it shows the saved and the
--- live values, which matter most while the feature is off. A status line, two
--- copy boxes side by side, Apply/Restore again and Read again. The on/off
+-- Cinematic Ultra page, listed while it is on like the other pages: a status
+-- line, the saved and the live values in two copy boxes side by side,
+-- Apply/Restore again, Refresh and Save current as original. The on/off
 -- switch itself is on the main page.
 -- =============================================================================
 local ultraPage = NewPage("BetterForeverCinematicUltraPanel", "Cinematic Ultra")
@@ -1155,7 +1155,7 @@ local VALUES_BOX_HEIGHT = 240
 local VALUES_BOX_GAP = 12
 
 function ultraPage.Enabled()
-  return true
+  return cu.GetSettings().enabled
 end
 
 function ultraPage.Refresh()
