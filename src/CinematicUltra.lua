@@ -47,9 +47,9 @@ local CVARS = {
   { "MSAAQuality", "1" },            -- ... but 2x MSAA (MSAA_SAMPLES; the index is looked up at apply time)
   { "ResampleQuality", "3" },        -- FidelityFX CAS sharpening ...
   { "ResampleSharpness", "0.7" },    -- ... at this strength
-  { "shadowTextureSize", "4096" },   -- 4K shadow maps (default 2048)
+  { "shadowTextureSize", "2048" },   -- the guide says 4096; this client caps it at 2048
   { "reflectionMode", "3" },         -- full world and character water reflections
-  { "rippleDetail", "3" },           -- full water ripples
+  { "rippleDetail", "2" },           -- the guide says 3; this client caps it at 2
   { "groundEffectDensity", "128" },  -- ground clutter past the slider cap (48) ...
   { "groundEffectDist", "500" },     -- ... out to 500 yards (slider cap 320)
   { "lodObjectFadeScale", "200" },   -- doodads fade in twice as far away
@@ -57,7 +57,7 @@ local CVARS = {
   { "doodadLodScale", "200" },       -- doodad detail at twice the distance
   { "terrainLodDist", "1000" },      -- full-detail terrain out to 1000 yards
   { "weatherDensity", "3" },         -- heaviest weather
-  { "graphicsSpellDensity", "5" },   -- every spell particle
+  { "graphicsSpellDensity", "2" },   -- the guide says 5; this client caps it at 2
   { "spellClutter", "0" },           -- no culling of "non-essential" spell effects
 }
 
@@ -189,8 +189,8 @@ end
 
 -- Sets one CVar and reads it back. Returns nil when it took, else a short
 -- note for the report: "capped at X" when SetCVar accepted the call but the
--- engine clamped the value (this client caps shadowTextureSize, rippleDetail
--- and graphicsSpellDensity below the guide's values), "rejected, kept X" when
+-- engine clamped the value (CVARS already carries this client's caps for
+-- shadowTextureSize, rippleDetail and graphicsSpellDensity), "rejected, kept X" when
 -- SetCVar said no outright, else "kept X"; plus read-only / locked if the
 -- client says so, and the default.
 local function WriteCVar(name, value)
