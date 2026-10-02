@@ -1,4 +1,4 @@
--- Better Beta: Soul Shard reaper (warlocks).
+-- Better Forever: Soul Shard reaper (warlocks).
 --
 -- Drain Soul gives a shard per kill and the bags fill up. This keeps the
 -- count at a limit (maxShards, default 3) by deleting the ones above it.
@@ -8,7 +8,7 @@
 -- all you can do is pop up a "destroy item?" dialog), and only ONE deletion
 -- per keypress. So the deleting happens from inside the Drain Soul macro on
 -- the options page ("/bb reap"), from the keybind (Bindings.xml ->
--- BetterBeta_ReapShards) or from the button on the page; each press removes
+-- BetterForever_ReapShards) or from the button on the page; each press removes
 -- one shard. The shard from the current kill arrives after the channel ends
 -- and gets cleaned up on the next cast. If the bags are full and we're at the
 -- limit, one shard is deleted anyway so the incoming one has a slot.
@@ -26,7 +26,7 @@ local Print = addon.Print or print
 
 -- -----------------------------------------------------------------------------
 -- Settings. Edited from the options panel and saved in
--- BetterBetaDB.soulShards; this table is what a fresh save falls back to.
+-- BetterForeverDB.soulShards; this table is what a fresh save falls back to.
 -- -----------------------------------------------------------------------------
 local DEFAULTS = {
   enabled = false, -- off by default: it destroys items
@@ -237,10 +237,10 @@ end
 -- Keybinding (Bindings.xml): the two BINDING_ globals name it in the
 -- keybindings UI, the global function is what the key runs.
 -- -----------------------------------------------------------------------------
-BINDING_HEADER_BETTERBETA = "Better Beta"
-BINDING_NAME_BETTERBETA_REAP_SHARDS = "Reap excess Soul Shards"
+BINDING_HEADER_BETTERFOREVER = "Better Forever"
+BINDING_NAME_BETTERFOREVER_REAP_SHARDS = "Reap excess Soul Shards"
 
-function BetterBeta_ReapShards()
+function BetterForever_ReapShards()
   Run(true, true)
 end
 
@@ -261,7 +261,7 @@ addon.soulShards = ss
 ss.DEFAULTS = DEFAULTS
 ss.MACRO_NAME = MACRO_NAME
 ss.MACRO_BODY = MACRO_BODY
-ss.KEYBINDING = BINDING_NAME_BETTERBETA_REAP_SHARDS
+ss.KEYBINDING = BINDING_NAME_BETTERFOREVER_REAP_SHARDS
 
 function ss.GetSettings()
   return settings

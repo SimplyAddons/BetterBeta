@@ -1,4 +1,4 @@
--- Better Beta: creature type icons on nameplates.
+-- Better Forever: creature type icons on nameplates.
 --
 -- An icon for the unit's creature type (beast, humanoid, undead, ...) left of
 -- the health bar, on every nameplate or only the target's. Optionally in a
@@ -21,7 +21,7 @@ local Print = addon.Print or print
 
 -- -----------------------------------------------------------------------------
 -- Settings. Edited from the options panel and saved in
--- BetterBetaDB.creatureIcon; this table is what a fresh save falls back to.
+-- BetterForeverDB.creatureIcon; this table is what a fresh save falls back to.
 -- -----------------------------------------------------------------------------
 local DEFAULTS = {
   enabled = true,

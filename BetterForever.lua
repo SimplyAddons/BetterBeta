@@ -1,4 +1,4 @@
--- Better Beta: small fixes for the WoW Forever beta client.
+-- Better Forever: small fixes for the WoW Forever beta client.
 --
 -- This file: the shared addon table, Print, saved variables and the FPS
 -- counter (the client hides the CTRL+R framerate frame on every login and
@@ -24,7 +24,7 @@ local APPLY_DELAYS = { 0.5, 2, 5 }
 -- frames (Show/Hide/SetPoint/HookScript) is fine.
 
 local addonName, addon = ...  -- `addon`: private table shared by every file of this addon
-local PREFIX = "|cff66ccffBetter Beta|r: "
+local PREFIX = "|cff66ccffBetter Forever|r: "
 
 local function Print(msg)
   print(PREFIX .. msg)
@@ -35,13 +35,13 @@ addon.Print = Print
 -- from ADDON_LOADED onwards: before that the client has not loaded the file
 -- and would overwrite whatever we created.
 function addon.GetSaved(moduleKey)
-  if type(BetterBetaDB) ~= "table" then
-    BetterBetaDB = {}
+  if type(BetterForeverDB) ~= "table" then
+    BetterForeverDB = {}
   end
-  if type(BetterBetaDB[moduleKey]) ~= "table" then
-    BetterBetaDB[moduleKey] = {}
+  if type(BetterForeverDB[moduleKey]) ~= "table" then
+    BetterForeverDB[moduleKey] = {}
   end
-  return BetterBetaDB[moduleKey]
+  return BetterForeverDB[moduleKey]
 end
 
 -- -----------------------------------------------------------------------------

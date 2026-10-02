@@ -1,4 +1,4 @@
--- Better Beta: Cinematic Ultra.
+-- Better Forever: Cinematic Ultra.
 --
 -- One switch for the 17 graphics CVars from the "Cinematic Ultra" guide: the
 -- menu part (render scale 133%, and 2x MSAA instead of the guide's "None",
@@ -8,7 +8,7 @@
 -- weather, every spell particle). See CVARS below.
 --
 -- Switching on first saves your own value of every CVar in
--- BetterBetaDB.cinematicUltra.original, then applies the Cinematic Ultra
+-- BetterForeverDB.cinematicUltra.original, then applies the Cinematic Ultra
 -- values; switching off puts the saved ones back. Off by default and nothing
 -- is applied on login or /reload. The game only writes CVars to Config.wtf
 -- on a clean logout, and Logout() is protected (an addon can't call it), so
@@ -30,7 +30,7 @@ local Print = addon.Print or print
 
 -- -----------------------------------------------------------------------------
 -- Settings. Edited from the options panel and saved in
--- BetterBetaDB.cinematicUltra; this table is what a fresh save falls back to.
+-- BetterForeverDB.cinematicUltra; this table is what a fresh save falls back to.
 -- Besides it the saved table holds `original` (name -> value, your own
 -- values, saved on switch-on), `originalTakenAt` (when) and `applied` (what
 -- the CVars read right after the last switch-on).
@@ -320,7 +320,7 @@ end
 local popup
 
 local function BuildPopup()
-  popup = CreateFrame("Frame", "BetterBetaCinematicUltraPopup", UIParent,
+  popup = CreateFrame("Frame", "BetterForeverCinematicUltraPopup", UIParent,
     BackdropTemplateMixin and "BackdropTemplate" or nil)
   popup:SetSize(440, 180)
   popup:SetPoint("TOP", UIParent, "TOP", 0, -140)

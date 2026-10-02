@@ -1,12 +1,12 @@
--- Better Beta: options panels.
+-- Better Forever: options panels.
 --
--- Interface Options > AddOns > Better Beta is a page of on/off toggles, one
+-- Interface Options > AddOns > Better Forever is a page of on/off toggles, one
 -- per feature, with the settings of each on sub-pages: FPS Counter, Creature
 -- Types (tooltip box + nameplate icon, each section shown while that feature
 -- is on), Wand Indicator, Soul Shards and Cinematic Ultra. A sub-page with
 -- nothing on is hidden from the list. /bb opens the main page; "/bb reap" is
 -- the line the Soul Shard macro runs and opens nothing. Everything applies
--- immediately and is saved in BetterBetaDB.
+-- immediately and is saved in BetterForeverDB.
 --
 -- Widgets are hand-built from base frame types plus the templates every
 -- client has (UICheckButtonTemplate, UIPanelButtonTemplate, InputBoxTemplate,
@@ -32,7 +32,7 @@ local wi = addon.wandIndicator
 local ss = addon.soulShards
 local cu = addon.cinematicUltra
 
-local MAIN_TITLE = "Better Beta"
+local MAIN_TITLE = "Better Forever"
 local CONTENT_WIDTH = 580
 local SLIDER_WIDTH = 160
 local X0 = 16
@@ -384,7 +384,7 @@ local function Title(page, text, description)
   return desc
 end
 
-local main = NewPage("BetterBetaOptionsPanel", MAIN_TITLE)
+local main = NewPage("BetterForeverOptionsPanel", MAIN_TITLE)
 local pages = {}          -- sub-pages in list order, filled in below
 local RefreshVisibility   -- forward declaration; defined with the registration
 
@@ -399,9 +399,9 @@ end
 
 function main.Build()
   local W, f = main.W, main.frame
-  local desc = Title(main, "Better Beta",
-    "Small fixes for the Forever beta client. Tick a function to turn it on; its settings are then on a page under "
-    .. "Better Beta in the list on the left (click the arrow next to Better Beta to expand it).")
+  local desc = Title(main, "Better Forever",
+    "Small fixes for the WoW Forever client. Tick a function to turn it on; its settings are then on a page under "
+    .. "Better Forever in the list on the left (click the arrow next to Better Forever to expand it).")
 
   local function Row(above, label, description, onChange)
     local cb = CheckBox(f, label, onChange, "GameFontNormal")
@@ -467,7 +467,7 @@ end
 -- =============================================================================
 -- FPS counter page
 -- =============================================================================
-local fps = NewPage("BetterBetaFPSPanel", "FPS Counter")
+local fps = NewPage("BetterForeverFPSPanel", "FPS Counter")
 pages[#pages + 1] = fps
 
 function fps.Enabled()
@@ -478,7 +478,7 @@ function fps.Build()
   local W, f = fps.W, fps.frame
   local desc = Title(fps, "FPS counter",
     "Shows the framerate counter Blizzard toggles with CTRL+R after login and after every /reload, because a reload "
-    .. "hides it again; it sits where Blizzard puts it, by the micro menu. Turning this function off on the Better Beta "
+    .. "hides it again; it sits where Blizzard puts it, by the micro menu. Turning this function off on the Better Forever "
     .. "page hides the counter, and with it off a login or reload leaves the counter alone. The buttons below act on "
     .. "the counter right now without changing the setting.")
 
@@ -498,7 +498,7 @@ end
 -- Creature Types page: the tooltip box and the nameplate icon. Listed while
 -- either is on; each has a section that is shown only while it is on.
 -- =============================================================================
-local typesPage = NewPage("BetterBetaCreatureTypesPanel", "Creature Types")
+local typesPage = NewPage("BetterForeverCreatureTypesPanel", "Creature Types")
 pages[#pages + 1] = typesPage
 
 function typesPage.Enabled()
@@ -569,7 +569,7 @@ function typesPage.Build()
   W.desc = Title(typesPage, "Creature types",
     "Shows an NPC's creature type (Humanoid, Beast, Undead, Demon, Elemental, ...) in a small box on top of its tooltip "
     .. "and as an icon left of the health bar on nameplates, so you can see at a glance what Sap, Blind or a "
-    .. "tracking ability will work on. Players get neither. Each is turned on or off on the Better Beta page; the "
+    .. "tracking ability will work on. Players get neither. Each is turned on or off on the Better Forever page; the "
     .. "settings of the ones that are on are below.")
 
   -- tooltip box
@@ -640,7 +640,7 @@ end
 -- =============================================================================
 -- Wand Indicator page
 -- =============================================================================
-local wandPage = NewPage("BetterBetaWandPanel", "Wand Indicator")
+local wandPage = NewPage("BetterForeverWandPanel", "Wand Indicator")
 pages[#pages + 1] = wandPage
 
 function wandPage.Enabled()
@@ -681,7 +681,7 @@ function wandPage.Build()
     "While Shoot is on, your wand's icon shows on screen with a pulsing rim, a bar that fills up until the next shot "
     .. "and a comic-book sound under it (\"ZAP!\", \"POOF!\", \"SHAZAM!\", ...) that changes with every shot. If a "
     .. "shot is overdue (out of range, not facing the target, ...) the rim stops pulsing, the icon turns grey and it "
-    .. "goes \"fizzle...\". It shows for a hunter's Auto Shot too. Turned on or off on the Better Beta page.")
+    .. "goes \"fizzle...\". It shows for a hunter's Auto Shot too. Turned on or off on the Better Forever page.")
 
   W.unlock = CheckBox(f, "Unlock to move (shows it until you untick this; drag it where you want it)",
     function(v) wi.SetUnlocked(v) wandPage.Refresh() end)
@@ -722,7 +722,7 @@ end
 -- Drain Soul macro to copy or create. The shard count on the status line is
 -- re-read whenever the bags change while the page is shown.
 -- =============================================================================
-local shardsPage = NewPage("BetterBetaSoulShardsPanel", "Soul Shards")
+local shardsPage = NewPage("BetterForeverSoulShardsPanel", "Soul Shards")
 pages[#pages + 1] = shardsPage
 
 function shardsPage.Enabled()
@@ -763,7 +763,7 @@ function shardsPage.Build()
     .. "destroy an item only while it is handling your own keypress or click, never on its own when a shard arrives "
     .. "(from there it could only pop up a \"destroy item?\" box), and only one item per keypress. So the deleting "
     .. "happens inside the Drain Soul macro below, with a key bound under Options > Keybindings > AddOns > Better "
-    .. "Beta, or with the button here; each press removes one shard. Turned on or off on the Better Beta page.")
+    .. "Forever, or with the button here; each press removes one shard. Turned on or off on the Better Forever page.")
 
   W.status = Paragraph(f, "", CONTENT_WIDTH)
   W.status:SetFontObject("GameFontHighlight")
@@ -795,7 +795,7 @@ function shardsPage.Build()
   W.create:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
 
   local keyNote = Paragraph(f, "A key can do the same as the macro's reap line: Options > Keybindings > AddOns > "
-    .. "Better Beta > " .. ss.KEYBINDING .. ".")
+    .. "Better Forever > " .. ss.KEYBINDING .. ".")
   keyNote:SetPoint("TOPLEFT", W.create, "BOTTOMLEFT", 0, -12)
 
   W.reset = Button(f, "Reset to defaults", 140, function()
@@ -819,7 +819,7 @@ end
 -- copy boxes side by side, Apply/Restore again and Read again. The on/off
 -- switch itself is on the main page.
 -- =============================================================================
-local ultraPage = NewPage("BetterBetaCinematicUltraPanel", "Cinematic Ultra")
+local ultraPage = NewPage("BetterForeverCinematicUltraPanel", "Cinematic Ultra")
 pages[#pages + 1] = ultraPage
 
 local VALUES_BOX_HEIGHT = 210
@@ -875,7 +875,7 @@ function ultraPage.Build()
     .. "4096 shadow maps, full water "
     .. "reflections and ripples, ground "
     .. "clutter past the slider caps, far object, doodad and terrain detail, heavy weather, every spell particle. "
-    .. "Switching it on (on the Better Beta page) first saves your own values, shown on the left, then applies the "
+    .. "Switching it on (on the Better Forever page) first saves your own values, shown on the left, then applies the "
     .. "Cinematic Ultra ones; switching it off puts your own values back. The game writes console variables to "
     .. "Config.wtf only on a clean logout, so after each switch you must type /camp yourself (an addon is not allowed to log you out).")
 
@@ -917,7 +917,7 @@ end
 -- =============================================================================
 -- Registration, sub-page visibility and /bb
 -- =============================================================================
-local category -- the main Better Beta category (modern Settings API only)
+local category -- the main Better Forever category (modern Settings API only)
 
 if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
   category = Settings.RegisterCanvasLayoutCategory(main.frame, MAIN_TITLE)
@@ -995,8 +995,8 @@ end
 -- /bb, the addon's only slash command, opens the main page. Its one argument,
 -- "reap", is the line the Soul Shard macro runs: it deletes one excess shard
 -- inside the keypress and opens nothing (silent while that function is off).
-SLASH_BETTERBETA1 = "/bb"
-SlashCmdList.BETTERBETA = function(msg)
+SLASH_BETTERFOREVER1 = "/bb"
+SlashCmdList.BETTERFOREVER = function(msg)
   if type(msg) == "string" and msg:match("^%s*(%S*)"):lower() == "reap" then
     ss.Reap()
     return

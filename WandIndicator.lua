@@ -1,4 +1,4 @@
--- Better Beta: on-screen indicator while the wand is shooting.
+-- Better Forever: on-screen indicator while the wand is shooting.
 --
 -- Shoot (wand auto-repeat) is easy to lose track of: only its action button
 -- flashes. So while it's active the wand icon shows near the middle of the
@@ -22,7 +22,7 @@ local addonName, addon = ...
 
 -- -----------------------------------------------------------------------------
 -- Settings. Edited from the options panel and saved in
--- BetterBetaDB.wandIndicator; this table is what a fresh save falls back to.
+-- BetterForeverDB.wandIndicator; this table is what a fresh save falls back to.
 -- -----------------------------------------------------------------------------
 local DEFAULTS = {
   enabled = true,
@@ -139,7 +139,7 @@ end
 -- -----------------------------------------------------------------------------
 local wi = {} -- the API, filled in at the bottom
 
-local f = CreateFrame("Frame", "BetterBetaWandIndicator", UIParent)
+local f = CreateFrame("Frame", "BetterForeverWandIndicator", UIParent)
 f:Hide()
 f:SetFrameStrata("HIGH")
 f:SetClampedToScreen(true)

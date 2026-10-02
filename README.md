@@ -1,6 +1,6 @@
-# Better Beta
+# Better Forever
 
-**Better Beta** is a collection of quality-of-life, UI, and visual enhancements for the WoW Forever Beta.
+**Better Forever** is a collection of quality-of-life, UI, and visual enhancements for the WoW Forever Beta.
 
 ## Features
 
@@ -11,4 +11,4 @@
 - **Cinematic Ultra Mode** --- A one-click collection of enhanced visual settings, including tuned gamma and contrast, for a richer and more cinematic presentation.
 - **Automatic FPS Display** --- Shows the FPS counter automatically whenever you log in or reload the UI.
 
-Better Beta is intended to be a growing collection of enhancements for WoW Forever. All options are individually controlled and configurable.
+Better Forever is intended to be a growing collection of enhancements for WoW Forever. All options are individually controlled and configurable.

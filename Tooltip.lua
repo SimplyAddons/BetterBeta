@@ -1,4 +1,4 @@
--- Better Beta: creature type (Humanoid, Beast, Undead, ...) above NPC tooltips.
+-- Better Forever: creature type (Humanoid, Beast, Undead, ...) above NPC tooltips.
 --
 -- A small box on top of the tooltip, left-aligned, with the creature type and
 -- its icon (same art as the nameplate icon). Players and "Not specified" are
@@ -20,7 +20,7 @@ local addonName, addon = ...
 local Print = addon.Print or print
 
 -- -----------------------------------------------------------------------------
--- Settings. Edited from the options panel and saved in BetterBetaDB.tooltip;
+-- Settings. Edited from the options panel and saved in BetterForeverDB.tooltip;
 -- this table is what a fresh save falls back to.
 -- -----------------------------------------------------------------------------
 local DEFAULTS = {
