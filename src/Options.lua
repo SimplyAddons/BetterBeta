@@ -1165,8 +1165,18 @@ function ultraPage.Refresh()
   end
   local W = ultraPage.W
   local st = cu.Status()
+  refreshing = true
+  W.city:SetChecked(cu.GetSettings().cityPause)
+  refreshing = false
   local status
-  if st.enabled then
+  if st.enabled and st.paused then
+    if st.differ == 0 then
+      status = "On, using the lighter city settings until you leave the city."
+    else
+      status = "On, using the lighter city settings, but " .. st.differ .. " of " .. st.total
+        .. " are different. Apply again fixes that."
+    end
+  elseif st.enabled then
     if st.differ == 0 then
       status = "On."
     else
@@ -1207,11 +1217,15 @@ function ultraPage.Build()
   W.status:SetFontObject("GameFontHighlight")
   W.status:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -10)
 
+  W.city = CheckBox(f, "Lighter settings in capital cities for better FPS; the full set comes back when you leave",
+    function(v) cu.Set("cityPause", v) ultraPage.Refresh() end)
+  W.city:SetPoint("TOPLEFT", W.status, "BOTTOMLEFT", -4, -6)
+
   W.menuNote = Paragraph(f, "Render Scale and Anti-Aliasing under Options > Graphics are part of this. If you change "
     .. "them there later, that part is undone and the line above says so.",
     CONTENT_WIDTH)
   W.menuNote:SetFontObject("GameFontNormalSmall")
-  W.menuNote:SetPoint("TOPLEFT", W.status, "BOTTOMLEFT", 0, -8)
+  W.menuNote:SetPoint("TOPLEFT", W.city, "BOTTOMLEFT", 4, -4)
 
   local boxWidth = (CONTENT_WIDTH - VALUES_BOX_GAP) / 2
   W.origHeader = Label(f, "Original settings")

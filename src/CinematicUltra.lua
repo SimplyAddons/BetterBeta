@@ -36,7 +36,8 @@ local Print = addon.Print or print
 -- the CVars read right after the last switch-on).
 -- -----------------------------------------------------------------------------
 local DEFAULTS = {
-  enabled = false, -- off by default, it changes your graphics settings
+  enabled = false,  -- off by default, it changes your graphics settings
+  cityPause = true, -- lighter values inside a capital city, the full set again outside
 }
 
 -- The CVars and their Cinematic Ultra values, in the order the options page
@@ -242,7 +243,7 @@ end
 -- many took, the list of those the client refused as "name (note)", and, when
 -- the Cinematic Ultra values were being set and a refused one stands for a
 -- menu setting, a hint to do that setting by hand.
-local function ApplyValues(values)
+local function ApplyValues(values, transient)
   local set, failed, menu, seen = 0, {}, {}, {}
   for _, entry in ipairs(CVARS) do
     local name = entry[1]
@@ -260,7 +261,9 @@ local function ApplyValues(values)
       end
     end
   end
-  changedThisSession = true
+  if not transient then
+    changedThisSession = true
+  end
   local hint
   if #menu > 0 then
     hint = "Set by hand under Options > Graphics: " .. table.concat(menu, ", ") .. "."
@@ -411,6 +414,79 @@ local function Report(on, set, failed, hint)
 end
 
 -- -----------------------------------------------------------------------------
+-- Capital cities. Inside one the crowd costs the frames, not the scenery, so
+-- while Cinematic Ultra is on and cityPause is set the CITY values take its
+-- place there and the full set comes back on leaving. One chat line per
+-- switch, no popup and no /camp warning: these changes are temporary.
+-- -----------------------------------------------------------------------------
+local CITY = { -- CVars not listed keep their value
+  RenderScale = "1",            -- native resolution
+  MSAAQuality = "0",            -- no multisampling
+  shadowTextureSize = "1024",   -- small shadow maps
+  reflectionMode = "0",         -- no water reflections ...
+  rippleDetail = "0",           -- ... or ripples
+  groundEffectDensity = "16",   -- little ground clutter ...
+  groundEffectDist = "70",      -- ... and only close by
+  lodObjectFadeScale = "100",   -- doodads fade at the normal distance
+  lodObjectCullSize = "20",     -- small objects are dropped sooner
+  doodadLodScale = "100",
+  terrainLodDist = "400",
+  weatherDensity = "0",         -- no weather
+  graphicsSpellDensity = "0",   -- fewest spell effects
+}
+local CITY_NAMES = {
+  ["Stormwind City"] = true, Ironforge = true, Darnassus = true,
+  Orgrimmar = true, ["Thunder Bluff"] = true, Undercity = true,
+}
+local CITY_MAPS = { -- the same six by map id, in case the zone text is not English
+  [1453] = true, [1455] = true, [1457] = true, [1454] = true, [1456] = true, [1458] = true,
+}
+
+local cityPaused = false -- the CITY values are in place of the Cinematic Ultra ones
+
+local function InCity()
+  if type(GetRealZoneText) == "function" then
+    local zone = GetRealZoneText()
+    if type(zone) == "string" and not IsSecret(zone) and CITY_NAMES[zone] then
+      return true
+    end
+  end
+  if type(C_Map) == "table" and type(C_Map.GetBestMapForUnit) == "function" then
+    local ok, mapID = pcall(C_Map.GetBestMapForUnit, "player")
+    if ok and type(mapID) == "number" and not IsSecret(mapID) and CITY_MAPS[mapID] then
+      return true
+    end
+  end
+  return false
+end
+
+-- Puts the values the current place calls for in effect, if they are not
+-- already: CITY inside a capital, the full set outside. Runs on zone changes
+-- and on login, so a logout inside a city heals itself on the way out.
+local function UpdateCity()
+  if not settings.enabled or not settings.cityPause then
+    if cityPaused then -- the option went off inside a city: the full set again
+      cityPaused = false
+      if settings.enabled then
+        ApplyValues(UltraValues(), true)
+      end
+    end
+    return
+  end
+  local inCity = InCity()
+  local target = inCity and CITY or UltraValues()
+  if inCity ~= cityPaused or not SameValues(ReadAll(), target) then
+    ApplyValues(target, true)
+  end
+  if inCity and not cityPaused then
+    Print("Cinematic Ultra |cffffff00paused|r: lighter settings while you are in the city.")
+  elseif cityPaused and not inCity then
+    Print("Cinematic Ultra |cff33ff33resumed|r.")
+  end
+  cityPaused = inCity
+end
+
+-- -----------------------------------------------------------------------------
 -- The switch
 -- -----------------------------------------------------------------------------
 local function SetEnabled(on)
@@ -428,8 +504,10 @@ local function SetEnabled(on)
     settings.applied = ReadAll()
     settings.enabled = true
     Report(true, set, failed, hint)
+    UpdateCity() -- switched on inside a city: paused at once, with its chat line
   else
     settings.enabled = false
+    cityPaused = false
     if not settings.original then
       Print("Cinematic Ultra off, but no original values were saved, so nothing was put back")
       return
@@ -441,10 +519,17 @@ end
 
 local events = CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED")
+events:RegisterEvent("PLAYER_ENTERING_WORLD")
+events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 events:SetScript("OnEvent", function(self, event, arg1)
   if event == "ADDON_LOADED" and arg1 == addonName then
     settings = Sanitize(CopyDefaults(addon.GetSaved("cinematicUltra")))
     self:UnregisterEvent("ADDON_LOADED")
+  elseif event == "PLAYER_ENTERING_WORLD" then
+    UpdateCity() -- the map is not always known yet, hence the second look
+    C_Timer.After(1, UpdateCity)
+  elseif event == "ZONE_CHANGED_NEW_AREA" then
+    UpdateCity()
   end
 end)
 
@@ -469,6 +554,9 @@ function cu.Set(key, value)
     SetEnabled(value)
   else
     settings[key] = value
+    if key == "cityPause" then
+      UpdateCity()
+    end
   end
   return true
 end
@@ -486,6 +574,11 @@ function cu.ApplyAgain()
     FillSnapshot(ReadAll())
     if not SnapshotCovers() then
       Print(NO_SNAPSHOT)
+      return
+    end
+    if cityPaused then
+      ApplyValues(CITY, true)
+      Print("Cinematic Ultra: the lighter city settings are set again; the full set comes back when you leave the city.")
       return
     end
     local set, failed, hint = ApplyValues(UltraValues())
@@ -520,7 +613,10 @@ end
 -- snapshot exists and when it was taken, how many of the CVars differ from
 -- the values the state calls for, and whether CVars were set this session.
 function cu.Status()
-  local target = settings.enabled and UltraValues() or settings.original
+  local target = settings.original
+  if settings.enabled then
+    target = cityPaused and CITY or UltraValues()
+  end
   local differ = 0
   if target then
     local current = ReadAll()
@@ -533,6 +629,7 @@ function cu.Status()
   end
   return {
     enabled = settings.enabled,
+    paused = cityPaused,
     haveOriginal = settings.original ~= nil,
     takenAt = settings.originalTakenAt,
     differ = differ,

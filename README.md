@@ -13,7 +13,7 @@
 - **Mob Type Indicators**  
   Shows creature types such as Beast, Undead, Humanoid, Demon, etc, in tooltips and alongside nameplates with custom icons.
 - **Cinematic Ultra Mode**  
-  A one-click set of enhanced graphics settings (render scale, anti-aliasing, sharpening, shadows, water, draw distance, weather and spell effects) for a richer and more cinematic presentation. Your own settings are saved first and restored when you turn it off.
+  A one-click set of enhanced graphics settings (render scale, anti-aliasing, sharpening, shadows, water, draw distance, weather and spell effects) for a richer and more cinematic presentation. Your own settings are saved first and restored when you turn it off. In capital cities it switches to lighter settings for better FPS and comes back when you leave.
 - **Automatic FPS Display**  
   Shows the FPS counter automatically whenever you log in or reload the UI.
 
