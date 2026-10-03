@@ -5,7 +5,8 @@
 -- Types (tooltip box + nameplate icon, each section shown while that feature
 -- is on), Combo Points, Wand Indicator, Soul Shards and Cinematic Ultra. A
 -- sub-page with nothing on is hidden from the list. /bb or /bf opens the main
--- page; "/bf reap" is the line the Soul Shard macro runs and opens nothing.
+-- page, /shards the Soul Shards page; "/shards reap" is the line the Soul
+-- Shard macro runs and opens nothing.
 -- Everything applies immediately and is saved in BetterForeverDB.
 --
 -- Widgets are hand-built from base frame types plus the templates every
@@ -1115,7 +1116,7 @@ function shardsPage.Build()
   local macroText = Paragraph(f, "Use this instead of Drain Soul: it deletes the extra shards, then casts. Copy it "
     .. "into /macro or click the button, then put it on your action bar.")
   macroText:SetPoint("TOPLEFT", W.macroHeader, "BOTTOMLEFT", 0, -8)
-  W.macro = CopyBox(f, CONTENT_WIDTH, 72)
+  W.macro = CopyBox(f, CONTENT_WIDTH, 96)
   W.macro:SetPoint("TOPLEFT", macroText, "BOTTOMLEFT", 0, -10)
   W.macro:SetValues(ss.MACRO_BODY)
   local hint = Paragraph(f, "Click in the box, then press CTRL+C to copy.")
@@ -1313,6 +1314,8 @@ OpenPage = function(page)
   elseif InterfaceOptionsFrame_OpenToCategory then
     InterfaceOptionsFrame_OpenToCategory(page.frame)
     InterfaceOptionsFrame_OpenToCategory(page.frame) -- old clients need the second call
+  else
+    Print("options: no options frame available in this client")
   end
 end
 
@@ -1328,23 +1331,23 @@ if IsLoggedIn and IsLoggedIn() then
   RefreshVisibility()
 end
 
--- /bb and /bf open the main page. The one argument, "reap", is the line the
--- Soul Shard macro runs: it deletes one excess shard inside the keypress and
--- opens nothing (silent while that function is off).
-SLASH_BETTERFOREVER1 = "/bb"
-SLASH_BETTERFOREVER2 = "/bf"
-SlashCmdList.BETTERFOREVER = function(msg)
-  if type(msg) == "string" and msg:match("^%s*(%S*)"):lower() == "reap" then
-    ss.Reap()
-    return
-  end
-  RefreshVisibility()
-  if category and Settings and Settings.OpenToCategory then
-    Settings.OpenToCategory(category.GetID and category:GetID() or main.frame.name)
-  elseif InterfaceOptionsFrame_OpenToCategory then
-    InterfaceOptionsFrame_OpenToCategory(main.frame)
-    InterfaceOptionsFrame_OpenToCategory(main.frame) -- old clients need the second call
-  else
-    Print("options: no options frame available in this client")
+-- /bb and /bf open the main page; /shards opens the Soul Shards page (the
+-- main page while that function is off, its page is hidden then). The one
+-- argument, "reap", is the line the Soul Shard macro runs: it deletes one
+-- excess shard inside the keypress and opens nothing (silent while that
+-- function is off). It works after any of the three.
+local function SlashHandler(page)
+  return function(msg)
+    if type(msg) == "string" and msg:match("^%s*(%S*)"):lower() == "reap" then
+      ss.Reap()
+      return
+    end
+    OpenPage(page)
   end
 end
+
+SLASH_BETTERFOREVER1 = "/bb"
+SLASH_BETTERFOREVER2 = "/bf"
+SlashCmdList.BETTERFOREVER = SlashHandler(main)
+SLASH_BETTERFOREVERSHARDS1 = "/shards"
+SlashCmdList.BETTERFOREVERSHARDS = SlashHandler(shardsPage)
